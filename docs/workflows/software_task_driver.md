@@ -1,6 +1,8 @@
 # Software Task Driver Workflow
 
-The software task driver is the bounded inner workflow. It executes one task created by the project driver or directly assigned when a job is small enough to avoid full project orchestration.
+The software task driver is the bounded inner workflow template. It executes one task created by the project driver or directly assigned when a job is small enough to avoid full project orchestration.
+
+This is a reusable software-task template, not a contract with any specific developer agent. Worker assignment and runtime mechanics belong in activity requests and role bindings.
 
 This page defines the task lifecycle. The shared state/event/activity/wait/blocker contract lives in [`../workflow_contract.md`](../workflow_contract.md) and defines the durable packet a task returns to the project driver.
 

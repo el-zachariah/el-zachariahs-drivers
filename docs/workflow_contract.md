@@ -4,10 +4,19 @@ The state diagrams describe the intended lifecycle, but implementation should st
 
 This contract is the proposed source of truth for the first implementation slice.
 
+## Engine vs template boundary
+
+The reusable product is not the `SoftwareProjectDriver` class by itself. The product is the engine contract underneath it; the project/task drivers are software-delivery templates running on that contract.
+
+Core engine records should remain true for any software-work template. Template-specific records may add planning, task breakdown, review, validation, release, or proof fields. Runtime-profile records may bind roles to concrete agents, queues, chats, repositories, or services.
+
+A field belongs in the engine core only if the workflow can replay and enforce it without knowing which person, agent, repository host, or chat surface is attached.
+
 ## Contract boundary
 
 The core workflow may know about:
 
+- project/task template identifiers and versions;
 - typed workflow state;
 - typed events and transition guards;
 - role-based activity requests;
@@ -23,7 +32,8 @@ The core workflow must not know about:
 - Kanban card mechanics;
 - a particular agent CLI;
 - GitHub notification internals; or
-- local filesystem paths outside configured evidence/storage adapters.
+- local filesystem paths outside configured evidence/storage adapters; or
+- concrete worker identities outside runtime profiles.
 
 Those details belong to adapter configuration and activity implementations.
 
@@ -33,6 +43,8 @@ Every durable driver instance should be able to serialize a state record with th
 
 ```yaml
 workflow_id: string
+template_id: string
+template_version: string
 driver_kind: SoftwareProjectDriver | SoftwareTaskDriver
 phase: string
 input:
@@ -120,7 +132,7 @@ input_refs:
 acceptance_criteria:
   - string
 allowed_side_effects:
-  - none | git_branch | git_commit | pull_request | review | command | external_service | user_message
+  - none | git_branch | git_commit | change_artifact | pull_request | review | command | external_service | user_message
 required_evidence:
   - string
 idempotency_key: string
@@ -204,3 +216,4 @@ The first implementation slice should prove this contract before broad feature e
 3. A task `RESCOPE_REQUESTED` packet returns to project `PLAN_RETHINK` without human escalation when the original intake outcome can still be preserved.
 4. A wait with no signal beyond its threshold records the configured blocker or failure path.
 5. A simulated process restart can report current phase, next trigger, owner role, blocker if any, and evidence refs without consulting chat memory or adapter-private state.
+6. The same engine core can run the template through at least two runtime profiles or adapter fixtures, proving the implementation is reusable rather than hardcoded to one developer/council/GitHub setup.

@@ -1,14 +1,17 @@
 # el-zachariahs-drivers Architecture
 
-This repo externalizes el-zachariah's software-development execution pattern into durable drivers.
+This repo defines a reusable durable workflow engine for software project and task execution.
 
-The core design is intentionally not tied to Hermes Kanban, Discord, or any single agent transport. Those are adapters. The durable workflow owns state and schedules role-based activities.
+`el-zachariah`'s software-development execution pattern is the first proving template/profile. The core engine should not depend on that worker identity.
+
+The core design is intentionally not tied to Hermes Kanban, Discord, or any single agent transport. Those are adapters. The durable workflow owns state and schedules role-based activities. See [`product_goal.md`](product_goal.md) for the reusable-engine target and non-goals.
 
 ## System boundary
 
 ```mermaid
 flowchart TD
-  User[zo-el / requester] -->|assigns durable work| ProjectDriver[SoftwareProjectDriver]
+  Requester[Requester] -->|assigns durable software work| Engine[DurableWorkflowEngine]
+  Engine -->|starts template run| ProjectDriver[SoftwareProjectDriver]
 
   ProjectDriver -->|persists lifecycle| ProjectState[(Durable project state)]
   ProjectDriver -->|starts bounded work| TaskDriver[SoftwareTaskDriver]
@@ -43,20 +46,33 @@ The core workflow never depends on a concrete transport such as Kanban, Discord,
 6. **Human gates are explicit.** Spending, credentials, product scope, merge, deploy, and dogfood activation wait for explicit approval signals.
 7. **Transitions are contract-driven.** Diagrams are explanatory; implementation follows typed events, decisions, activity requests, wait policies, blockers, and evidence references.
 8. **Activities are idempotent side-effect boundaries.** Adapters may talk to GitHub, agents, chat, or CI, but core workflows schedule role-based activity requests with idempotency keys and required evidence.
+9. **Concrete identities are profile data.** Names like `zo-el`, `el-zachariah`, `Micaiah`, and `el-le` belong in examples/runtime profiles, not core models or reusable workflow templates.
+10. **Software gates are configurable.** Pull requests, review, proof, feedback, dogfood, and merge/release are reusable gate concepts, but their concrete tools and required sequence should be template/profile policy.
 
 ## Layers
 
 ```mermaid
 flowchart LR
-  Spec[Workflow spec] --> Contract[Workflow contract]
+  ProductGoal[Product goal] --> Spec[Workflow specs]
+  Spec --> Contract[Workflow contract]
   Contract --> Models[Typed models]
-  Models --> Workflows[Temporal workflows]
+  Models --> Runtime[Durable runtime backend]
+  Runtime --> Workflows[Workflow templates]
   Workflows --> Activities[Activity contracts]
-  Activities --> Adapters[Runtime adapters]
+  Activities --> Profiles[Runtime profiles]
+  Profiles --> Adapters[Runtime adapters]
   Adapters --> Evidence[PRs / tests / reviews / reports]
 ```
 
-The contract layer is documented in [`workflow_contract.md`](workflow_contract.md). It is the bridge between lifecycle diagrams and implementation: every workflow tick consumes a typed event, emits a typed decision, and records material progress, a controlled wait, a blocker, or a terminal outcome.
+The contract layer is documented in [`workflow_contract.md`](workflow_contract.md). It is the bridge between product goal, lifecycle diagrams, and implementation: every workflow tick consumes a typed event, emits a typed decision, and records material progress, a controlled wait, a blocker, or a terminal outcome.
+
+## Engine vs template boundary
+
+The reusable product is the durable workflow engine. `SoftwareProjectDriver` and `SoftwareTaskDriver` are the first software-delivery templates running on that engine.
+
+The engine core owns generic capabilities: state persistence, replay, timers, signals, idempotent activity scheduling, evidence references, blocker records, terminal outcomes, and policy evaluation. The software templates own domain-specific states such as planning, task execution, review, proof, feedback, and release gates.
+
+Concrete people, agent names, chat surfaces, repository hosts, and credentials should appear only in runtime profiles/adapters or examples.
 
 ## Driver split
 
@@ -67,10 +83,14 @@ The project driver may create many task-driver runs. A small job can still enter
 
 ## v1 build target
 
-The first production slice should not attempt to be a general agent operating system. Build one vertical well:
+The first production slice should not attempt to be a general agent operating system. Build one vertical well, but keep the reusable-engine boundary intact:
 
-> assigned software-development intake → plan → bounded tasks → PR → review → validation/proof as configured → feedback/release gates → final report.
+> durable software-work intake → plan → bounded tasks → change artifact → review → validation/proof as configured → feedback/release gates → final report.
+
+For a GitHub-backed runtime profile, the change artifact will usually be a PR. For another profile, it might be a patch, branch, package, deployment preview, or local evidence bundle.
 
 The acceptance test for v1 is that a project can be resumed after process restart and still answer: current phase, current task, next trigger, last material progress, blocker owner if any, and final-report path when done.
+
+A second acceptance test is that concrete council/agent bindings can be swapped through a runtime profile without changing engine core models.
 
 Before implementing broad adapters, encode the common [`workflow_contract.md`](workflow_contract.md) model so the state diagrams cannot drift into hidden adapter state or untracked no-op observations.

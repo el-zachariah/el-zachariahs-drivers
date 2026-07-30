@@ -1,26 +1,29 @@
 # el-zachariahs-drivers
 
-Durable project and task drivers for **el-zachariah's software-development execution patterns**.
+Durable workflow engine for **software project and task execution**.
 
-This is intentionally **not** "zo-el's brain" and not a generic agent swarm. It is a reusable place to externalize how a developer agent should move software projects forward without relying on chat memory, stale cron loops, or hidden local state.
+The first bundled workflow templates externalize el-zachariah's software-development execution pattern, but that pattern is a proving profile, not the product boundary.
+
+This is intentionally **not** "zo-el's brain" and not a generic agent swarm. It is a reusable engine for moving software work forward without relying on chat memory, stale cron loops, or hidden local state.
 
 ## Design stance
 
 - Reuse production workflow patterns and libraries instead of inventing a private orchestration system.
-- Use Temporal-style separation: deterministic workflows decide state transitions; activities perform side effects.
+- Treat Temporal as the likely first durable-runtime backend, not as the product model itself.
+- Use deterministic workflow templates to decide state transitions; activities perform side effects.
 - Keep LangGraph-compatible seams for agent decision subgraphs where useful, but do not make an LLM own durable state.
-- Split the system into two drivers:
+- Split the first software-delivery template into two drivers:
   - **Project driver**: owns the full software project lifecycle and phase transitions.
   - **Task driver**: owns one bounded implementation/review/proof task.
 
 ## Current workflow proposal
 
-The current documentation proposal is contract-first:
+The current documentation proposal should be engine-first and template-second:
 
-1. Define the shared workflow contract: durable state records, typed events, role-based activity requests, wait policies, blocker ownership, and evidence references.
-2. Run an outer `SoftwareProjectDriver` for durable project/milestone/job lifecycle.
-3. Spawn bounded `SoftwareTaskDriver` runs for implementation, review-repair, proof-repair, or directly assigned small tasks.
-4. Keep all transports and concrete workers behind adapters.
+1. Define the product goal: a reusable durable workflow engine for software projects/tasks.
+2. Define the shared workflow contract: durable state records, typed events, role-based activity requests, wait policies, blocker ownership, and evidence references.
+3. Provide `SoftwareProjectDriver` and `SoftwareTaskDriver` as the first reusable software-delivery templates.
+4. Bind concrete workers/transports through runtime profiles and adapters.
 
 ```text
 SoftwareProjectDriver
@@ -30,7 +33,7 @@ SoftwareProjectDriver
   → TASK_BREAKDOWN
   → TASK_EXECUTION
       ↳ SoftwareTaskDriver per bounded task
-  → PR_OPEN
+  → CHANGE_ARTIFACT_READY (PR in GitHub profile)
   → REVIEW_REQUESTED / REVIEW_WAIT
   → FIXING_REVIEW or PROOF_AUTH_WAIT or FEEDBACK_READY
   → FEEDBACK_WAIT
@@ -41,6 +44,7 @@ SoftwareProjectDriver
 
 Start with:
 
+- [`docs/product_goal.md`](docs/product_goal.md) for the reusable-engine target and non-goals.
 - [`docs/architecture.md`](docs/architecture.md) for the system boundary and v1 target.
 - [`docs/workflow_contract.md`](docs/workflow_contract.md) for the common implementation contract.
 - [`docs/workflows/software_project_driver.md`](docs/workflows/software_project_driver.md) for the outer lifecycle.
@@ -51,6 +55,7 @@ Start with:
 
 ```text
 docs/
+  product_goal.md                         Reusable-engine target, non-goals, and product-layer boundaries.
   architecture.md                         System boundary, design stance, and v1 target.
   workflow_contract.md                    Shared state/event/activity/wait/blocker contract.
   design_iterations.md                    Accepted critique passes and recommendation history.
@@ -60,13 +65,13 @@ docs/
 src/el_zachariahs_drivers/
   models.py                               Shared typed state/events.
   workflows/
-    project_driver.py                     Temporal-style project lifecycle workflow skeleton.
-    task_driver.py                        Temporal-style bounded task workflow skeleton.
+    project_driver.py                     Durable-runtime project lifecycle workflow skeleton.
+    task_driver.py                        Durable-runtime bounded task workflow skeleton.
   activities/
     contracts.py                          Activity interfaces; side effects live behind these contracts.
   policies/
     progress.py                           Material-progress/no-op detection policy.
-    escalation.py                         El-Le vs zo-el escalation routing policy.
+    escalation.py                         Configured escalation routing policy.
   adapters/
     hermes.py                             Placeholder adapter boundary for runtime worker integrations.
 examples/
