@@ -46,7 +46,7 @@ The core workflow never depends on a concrete transport such as Kanban, Discord,
 6. **Human gates are explicit.** Spending, credentials, product scope, merge, deploy, and dogfood activation wait for explicit approval signals.
 7. **Transitions are contract-driven.** Diagrams are explanatory; implementation follows typed events, decisions, activity requests, wait policies, blockers, and evidence references.
 8. **Activities are idempotent side-effect boundaries.** Adapters may talk to GitHub, agents, chat, or CI, but core workflows schedule role-based activity requests with idempotency keys and required evidence.
-9. **Concrete identities are profile data.** Names like `zo-el`, `el-zachariah`, `Micaiah`, and `El-Lee` belong in examples/runtime profiles, not core models or reusable workflow templates.
+9. **Concrete identities are profile data.** Names like `zo-el`, `el-zachariah`, `Micaiah`, and `el-le` belong in examples/runtime profiles, not core models or reusable workflow templates.
 10. **Software gates are configurable.** Pull requests, review, proof, feedback, dogfood, and merge/release are reusable gate concepts, but their concrete tools and required sequence should be template/profile policy.
 
 ## Layers
