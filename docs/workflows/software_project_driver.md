@@ -94,6 +94,8 @@ stateDiagram-v2
 
 Blocker transitions do not imply a generic jump to the end of a task or project. A blocker records a resume target: the blocked phase, allowed decision options, and the phase/activity to resume after resolution. The project driver uses that target to resume a child task, re-plan, continue proof/release work, cancel, or fail under policy.
 
+This is an application of the reusable engine contract. The project template owns these phase names; the engine core only requires that non-terminal blockers carry replayable resume targets.
+
 ## Terminal and failure policy
 
 `DONE` is the successful terminal outcome. `FAILED` and `CANCELLED` are shared terminal outcomes from the workflow contract, not ordinary lifecycle phases:

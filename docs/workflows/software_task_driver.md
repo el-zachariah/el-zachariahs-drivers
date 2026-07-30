@@ -73,7 +73,7 @@ The diagram's `RETURN_TO_PROJECT --> [*]` edge means the child task workflow has
 
 ## Blocker resume semantics
 
-A task blocker must include the phase where work stopped and the intended resume behavior after the owner resolves it. Without that, the project driver would know that a task is blocked but not where or how to continue.
+A task blocker applies the engine-level blocker resume contract to the software-task template. It must include the phase where work stopped and the intended resume behavior after the owner resolves it. Without that, the project driver would know that a task is blocked but not where or how to continue.
 
 Minimum blocker resume packet:
 
@@ -94,6 +94,8 @@ Examples:
 - A credential/resource blocker during `TESTING` usually resumes at `TESTING` after the resource is available.
 
 The parent project driver records this packet as the child task's suspension point. After unblock, the project driver may resume the same task workflow from the blocked phase, create a replacement task with updated input, enter `PLAN_RETHINK`, or stop the work if the authorized decision says so.
+
+Other templates should use the same blocker-resume contract with their own phase vocabulary. The engine should not hardcode these task phase names.
 
 ## Review repair loop
 

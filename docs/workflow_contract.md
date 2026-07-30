@@ -166,6 +166,8 @@ If the workflow cannot name the awaited signal and the threshold response, it is
 
 A blocker is not a terminal state. It is a durable request for a specific owner role to provide a decision.
 
+The reusable engine contract should require resume semantics for every non-terminal blocker. Templates then decide what concrete phase names are valid. For example, the software task template may resume to `TESTING`, while another software-work template may resume to a packaging, deployment-preview, or documentation phase.
+
 A valid blocker must include:
 
 - owner role;
@@ -192,6 +194,8 @@ decision_options:
 ```
 
 The resume target prevents the workflow from treating a blocker as an endpoint. Resolution may resume the same phase, move backward for repair/rethink, move forward if the decision supplies missing authority, cancel the work, or fail the run under policy. The transition is chosen from the recorded decision options, not guessed from chat context.
+
+This belongs in the engine contract, not only in the `SoftwareTaskDriver` template, because any durable workflow that can block must also be able to explain how it resumes.
 
 ## Driver interaction contract
 
