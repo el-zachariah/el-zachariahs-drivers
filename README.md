@@ -68,7 +68,7 @@ src/el_zachariahs_drivers/
     progress.py                           Material-progress/no-op detection policy.
     escalation.py                         El-Le vs zo-el escalation routing policy.
   adapters/
-    hermes.py                             Placeholder adapter boundary for Hermes/Kanban/GitHub workers.
+    hermes.py                             Placeholder adapter boundary for runtime worker integrations.
 examples/
   agent_toolkit_slice_1.yaml              Example config named after the concrete project slice.
 tests/

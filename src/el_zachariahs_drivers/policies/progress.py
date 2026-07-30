@@ -20,6 +20,8 @@ MATERIAL_PROGRESS_SIGNALS = frozenset(
         ProgressSignal.TASKS_CREATED,
         ProgressSignal.TASK_STARTED,
         ProgressSignal.TASK_COMPLETED,
+        ProgressSignal.TASK_FAILED,
+        ProgressSignal.TASK_CANCELLED,
         ProgressSignal.TASK_RESCOPE_REQUESTED,
         ProgressSignal.PR_CREATED,
         ProgressSignal.PR_UPDATED,
