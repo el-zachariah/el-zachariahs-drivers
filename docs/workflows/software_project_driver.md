@@ -59,9 +59,11 @@ stateDiagram-v2
 
   FINAL_REPORT --> DONE: FINAL_REPORT_DELIVERED
 
-  BLOCKED_NEEDS_EL_LE --> PLANNING: process unblock preserves outcome
-  BLOCKED_NEEDS_EL_LE --> PLAN_RETHINK: process unblock requires rethink
+  BLOCKED_NEEDS_EL_LE --> PLANNING: resume target says re-plan
+  BLOCKED_NEEDS_EL_LE --> PLAN_RETHINK: resume target says rethink
+  BLOCKED_NEEDS_EL_LE --> TASK_EXECUTION: resume target says resume child task
   BLOCKED_NEEDS_ZO_EL --> PLANNING: human decision changes scope
+  BLOCKED_NEEDS_ZO_EL --> TASK_EXECUTION: human decision unblocks child task
   BLOCKED_NEEDS_ZO_EL --> PROOF_RUNNING: human approves proof
   BLOCKED_NEEDS_ZO_EL --> FINAL_REPORT: human stops / accepts current artifact
 ```
@@ -92,6 +94,10 @@ stateDiagram-v2
 | `BLOCKED_NEEDS_EL_LE` | Process/developer unblock needed. | process steward | decision or diagnosis | resume or rethink |
 | `BLOCKED_NEEDS_ZO_EL` | Human authority/resource/product gate. | human approver | decision | resume, stop, or revise |
 
+Blocker transitions do not imply a generic jump to the end of a task or project. A blocker records a resume target: the blocked phase, allowed decision options, and the phase/activity to resume after resolution. The project driver uses that target to resume a child task, re-plan, continue proof/release work, cancel, or fail under policy.
+
+This is an application of the reusable engine contract. The project template owns these phase names; the engine core only requires that non-terminal blockers carry replayable resume targets.
+
 ## Terminal and failure policy
 
 `DONE` is the successful terminal outcome. `FAILED` and `CANCELLED` are shared terminal outcomes from the workflow contract, not ordinary lifecycle phases:
@@ -120,9 +126,7 @@ activities_to_schedule:
 wait_to_start: optional
   awaited_signal: string
   threshold_at: timestamp
-blocker_to_record: optional
-  owner_role: string
-  required_decision: string
+blocker_to_record: optional Blocker
 evidence_refs:
   - type: plan | task | commit | pull_request | review | proof | report | adapter_record
     uri: string
