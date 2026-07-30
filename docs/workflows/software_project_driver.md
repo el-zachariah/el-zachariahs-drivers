@@ -1,6 +1,8 @@
 # Software Project Driver Workflow
 
-The software project driver is the outer durable workflow. It manages a project intake, a project milestone, or a durable job that needs lifecycle tracking.
+The software project driver is the outer durable workflow template. It manages a software project intake, a project milestone, or a durable job that needs lifecycle tracking.
+
+This is the first software-delivery template for the reusable engine, not the engine core itself. Concrete worker identities, repository hosts, chat surfaces, and exact gate requirements should be supplied by runtime profiles/adapters.
 
 This page defines the lifecycle states. The shared state/event/activity/wait/blocker contract lives in [`../workflow_contract.md`](../workflow_contract.md) and should be implemented before broad adapter work.
 
@@ -73,8 +75,8 @@ stateDiagram-v2
 | `PLAN_REVIEW` | Independent check before task creation. | reviewer | approval or findings | task breakdown, planning revision, or block |
 | `PLAN_RETHINK` | Self-recovery after task/review findings reveal plan drift. | project intake owner | revised plan/tasks, unchanged-or-changed outcome assessment | task breakdown or escalation |
 | `TASK_BREAKDOWN` | Create bounded task-driver inputs. | project intake owner | task list with acceptance/evidence commands | task execution |
-| `TASK_EXECUTION` | Run task drivers until required tasks complete or rescope. | developer/task driver | completed tasks, evidence, rescope requests | continue, rethink, or PR open |
-| `PR_OPEN` | Create/update remote feedback artifact. | developer | PR URL/head | review request |
+| `TASK_EXECUTION` | Run task drivers until required tasks complete or rescope. | developer/task driver | completed tasks, evidence, rescope requests | continue, rethink, or change artifact ready |
+| `PR_OPEN` | Create/update remote feedback artifact. | developer | change artifact URL/head | review request |
 | `REVIEW_REQUESTED` | Request review once and record evidence. | project driver/adapters | review request evidence | review wait |
 | `REVIEW_WAIT` | Wait for reviewer result with threshold. | reviewer | review approval/findings | fix, proof, feedback, or process block |
 | `FIXING_REVIEW` | Turn review findings into task-driver repair work. | developer | accepted findings, repair tasks | task execution or plan rethink |
@@ -129,20 +131,37 @@ terminal_outcome: optional DONE | FAILED | CANCELLED
 
 This packet is what makes `TASK_EXECUTION`, waits, blockers, and final reporting replayable after restart.
 
+## Artifact and gate portability
+
+The state names use the GitHub-backed path because that is the likely first runtime profile. The template should still model these as portable concepts:
+
+| Current state | Portable concept |
+|---|---|
+| `PR_OPEN` | change artifact exists |
+| `REVIEW_REQUESTED` / `REVIEW_WAIT` | independent review gate |
+| `PROOF_AUTH_WAIT` / `PROOF_RUNNING` | validation/proof gate |
+| `FEEDBACK_READY` / `FEEDBACK_WAIT` | requester feedback gate |
+| `DOGFOOD_GATE` | real-use validation gate |
+| `MERGE_GATE` | release/publication gate |
+
+A non-GitHub runtime profile can satisfy the same gates with a patch, branch, package, deployment preview, local evidence bundle, or another configured artifact.
+
 ## Role contract
 
 The workflow calls roles, not concrete people, chat surfaces, or queues.
 
-| Role | Responsibility | Typical bound actor in zo-el council | Output type |
-|---|---|---|---|
-| `project_intake_owner` | Own plan, rethink, task breakdown, final report. | el-zachariah | plan, task list, final report |
-| `developer` | Execute bounded tasks and repairs. | el-zachariah | commits, PR updates, test evidence |
-| `reviewer` | Independent plan/code/proof review. | Micaiah or configured reviewer | approval/findings |
-| `proof_runner` | Run approved proof/validation packet. | configured agent/service | proof evidence |
-| `process_steward` | Diagnose workflow/process/dispatch ambiguity. | El-Le/default-equivalent | process decision |
-| `human_approver` | Product/resource/merge/dogfood authority. | zo-el/requester | approval/denial/scope decision |
+| Role | Responsibility | Output type |
+|---|---|---|
+| `project_intake_owner` | Own plan, rethink, task breakdown, final report. | plan, task list, final report |
+| `developer` | Execute bounded tasks and repairs. | commits, change artifacts, test evidence |
+| `reviewer` | Independent plan/code/proof review. | approval/findings |
+| `proof_runner` | Run approved proof/validation packet. | proof evidence |
+| `process_steward` | Diagnose workflow/process/dispatch ambiguity. | process decision |
+| `human_approver` | Product/resource/merge/dogfood authority. | approval/denial/scope decision |
 
-Runtime adapter config binds these roles to concrete tools. The workflow should not hardcode Kanban, Discord, Hermes profile names, or GitHub review mechanics.
+Concrete bindings for these roles belong in runtime profiles or examples, not in the reusable workflow template.
+
+Runtime adapter config binds these roles to concrete tools. The workflow should not hardcode Kanban, Discord, Hermes profile names, GitHub review mechanics, or any one council's actor names.
 
 ## Wait and stall policy
 

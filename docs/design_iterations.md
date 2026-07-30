@@ -1,6 +1,6 @@
-# Five-Pass Design Critique
+# Design Critique Passes
 
-This note records five critique passes over the initial driver proposal and the changes accepted into the current recommendation.
+This note records critique passes over the initial driver proposal and the changes accepted into the current recommendation.
 
 ## Pass 1 — Remove transport assumptions
 
@@ -22,7 +22,7 @@ This note records five critique passes over the initial driver proposal and the 
 
 ## Pass 4 — Self-recover before escalating
 
-**Critique:** Review/test findings should not immediately escalate to El-Le or zo-el. The assigned intake owner should first rethink the plan when the original outcome can still be preserved.
+**Critique:** Review/test findings should not immediately escalate to a process steward or human approver. The assigned intake owner should first rethink the plan when the original outcome can still be preserved.
 
 **Decision:** Task `RESCOPE_REQUESTED` returns to project `PLAN_RETHINK`. Escalate only if the rethink changes the intake outcome, needs process/developer opinion, or needs human authority/resources/product direction.
 
@@ -38,11 +38,17 @@ This note records five critique passes over the initial driver proposal and the 
 
 **Decision:** Add a shared workflow contract for durable state records, typed events/decisions, role-based activity requests, wait policies, blockers, evidence refs, and terminal outcomes. Implement that contract before broad adapter work.
 
-## Clear recommendation after six passes
+## Pass 7 — Clarify reusable engine vs concrete worker flow
 
-Build `el-zachariahs-drivers` as a Temporal-style software-development workflow system with two drivers:
+**Critique:** The proposal still risked treating `el-zachariah`'s current workflow, GitHub PRs, and council role bindings as if they were the product itself. For a reusable durable workflow engine, those are a proving profile and adapter set, not the core boundary.
+
+**Decision:** Put the reusable-engine goal first. Keep the project/task split as the first software-delivery template, but move concrete identities, repository hosts, chat surfaces, and required gate sequences into runtime profiles/adapters or examples. Add reuse-oriented acceptance criteria, including a second profile/fixture that proves the engine is not hardcoded to one developer setup.
+
+## Clear recommendation after seven passes
+
+Build `el-zachariahs-drivers` as a reusable durable workflow engine for software projects/tasks. The first included template should be a Temporal-capable software-delivery workflow with two drivers:
 
 1. **SoftwareProjectDriver** — durable outer lifecycle for project/milestone/job execution.
 2. **SoftwareTaskDriver** — bounded inner lifecycle for one task.
 
-Keep core workflows role-based and adapter-neutral. Add Temporal implementations only after the workflow docs are tight enough that each state has explicit inputs, outputs, progress signals, wait policy, blocker policy, evidence refs, terminal outcomes, and next transition.
+Keep core workflows role-based and adapter-neutral. Add durable-runtime implementations only after the workflow docs are tight enough that each state has explicit inputs, outputs, progress signals, wait policy, blocker policy, evidence refs, terminal outcomes, and next transition. Keep `el-zachariah`, council actors, Hermes/Kanban/Discord, and GitHub-specific behavior in runtime profiles/adapters or examples.
