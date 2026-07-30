@@ -2,6 +2,8 @@
 
 The software project driver is the outer durable workflow. It manages a project intake, a project milestone, or a durable job that needs lifecycle tracking.
 
+This page defines the lifecycle states. The shared state/event/activity/wait/blocker contract lives in [`../workflow_contract.md`](../workflow_contract.md) and should be implemented before broad adapter work.
+
 ## State diagram
 
 ```mermaid
@@ -88,6 +90,45 @@ stateDiagram-v2
 | `BLOCKED_NEEDS_EL_LE` | Process/developer unblock needed. | process steward | decision or diagnosis | resume or rethink |
 | `BLOCKED_NEEDS_ZO_EL` | Human authority/resource/product gate. | human approver | decision | resume, stop, or revise |
 
+## Terminal and failure policy
+
+`DONE` is the successful terminal outcome. `FAILED` and `CANCELLED` are shared terminal outcomes from the workflow contract, not ordinary lifecycle phases:
+
+- `FAILED` means the workflow cannot continue safely under the current contract, retry policy, or available evidence.
+- `CANCELLED` means an authorized owner stopped or rejected the intake before completion.
+- `BLOCKED_NEEDS_*` states are not terminal; they preserve the resume target and required decision.
+
+A project driver should not convert a blocker into failure unless the blocker policy or authorized decision says the run must stop.
+
+## Project decision packet
+
+Each project-driver transition should emit a decision packet that includes:
+
+```yaml
+project_id: string
+from_phase: string
+to_phase: string
+material_progress: boolean
+progress_signal: optional string
+activities_to_schedule:
+  - activity_id: string
+    role: project_intake_owner | developer | reviewer | proof_runner | process_steward | human_approver
+    acceptance_criteria:
+      - string
+wait_to_start: optional
+  awaited_signal: string
+  threshold_at: timestamp
+blocker_to_record: optional
+  owner_role: string
+  required_decision: string
+evidence_refs:
+  - type: plan | task | commit | pull_request | review | proof | report | adapter_record
+    uri: string
+terminal_outcome: optional DONE | FAILED | CANCELLED
+```
+
+This packet is what makes `TASK_EXECUTION`, waits, blockers, and final reporting replayable after restart.
+
 ## Role contract
 
 The workflow calls roles, not concrete people, chat surfaces, or queues.
@@ -124,6 +165,6 @@ Every project-driver tick/activity completion must result in exactly one of:
 1. material progress signal;
 2. controlled wait with timer/signal condition;
 3. blocker with owner role and required decision;
-4. terminal done/failed outcome.
+4. terminal done/failed/cancelled outcome.
 
-If none is produced, the run is `STALLED` and should be treated as a workflow failure, not as progress.
+If none is produced, the run is `STALLED` and should be treated as a workflow failure, not as progress. `STALLED` is a diagnosis that must immediately produce a retry, blocker, failure, or cancellation decision; it should not become another quiet holding phase.

@@ -13,42 +13,66 @@ This is intentionally **not** "zo-el's brain" and not a generic agent swarm. It 
   - **Project driver**: owns the full software project lifecycle and phase transitions.
   - **Task driver**: owns one bounded implementation/review/proof task.
 
-## Initial workflow shape
+## Current workflow proposal
+
+The current documentation proposal is contract-first:
+
+1. Define the shared workflow contract: durable state records, typed events, role-based activity requests, wait policies, blocker ownership, and evidence references.
+2. Run an outer `SoftwareProjectDriver` for durable project/milestone/job lifecycle.
+3. Spawn bounded `SoftwareTaskDriver` runs for implementation, review-repair, proof-repair, or directly assigned small tasks.
+4. Keep all transports and concrete workers behind adapters.
 
 ```text
 SoftwareProjectDriver
-  PROJECT_ASSIGNED
-  → PROJECT_PLANNING
+  PROJECT_INTAKE_ASSIGNED
+  → PLANNING
+  → PLAN_REVIEW
   → TASK_BREAKDOWN
   → TASK_EXECUTION
-      ↳ SoftwareTaskDriver per task
-  → PR_INTEGRATION
-  → REVIEW_PHASE
-  → PROOF_PHASE
-  → FEEDBACK_PHASE
-  → DOGFOOD_OR_MERGE_GATE
-  → DONE or BLOCKED
+      ↳ SoftwareTaskDriver per bounded task
+  → PR_OPEN
+  → REVIEW_REQUESTED / REVIEW_WAIT
+  → FIXING_REVIEW or PROOF_AUTH_WAIT or FEEDBACK_READY
+  → FEEDBACK_WAIT
+  → DOGFOOD_GATE / MERGE_GATE when configured
+  → FINAL_REPORT
+  → DONE, FAILED, CANCELLED, or BLOCKED_NEEDS_*
 ```
+
+Start with:
+
+- [`docs/architecture.md`](docs/architecture.md) for the system boundary and v1 target.
+- [`docs/workflow_contract.md`](docs/workflow_contract.md) for the common implementation contract.
+- [`docs/workflows/software_project_driver.md`](docs/workflows/software_project_driver.md) for the outer lifecycle.
+- [`docs/workflows/software_task_driver.md`](docs/workflows/software_task_driver.md) for the bounded task lifecycle.
+- [`docs/design_iterations.md`](docs/design_iterations.md) for accepted critique passes.
 
 ## Repository map
 
 ```text
-src/el_zachariahs_drivers/
-  models.py                 Shared typed state/events.
+docs/
+  architecture.md                         System boundary, design stance, and v1 target.
+  workflow_contract.md                    Shared state/event/activity/wait/blocker contract.
+  design_iterations.md                    Accepted critique passes and recommendation history.
   workflows/
-    project_driver.py       Temporal-style project lifecycle workflow skeleton.
-    task_driver.py          Temporal-style bounded task workflow skeleton.
+    software_project_driver.md            Outer durable project lifecycle.
+    software_task_driver.md               Inner bounded task lifecycle.
+src/el_zachariahs_drivers/
+  models.py                               Shared typed state/events.
+  workflows/
+    project_driver.py                     Temporal-style project lifecycle workflow skeleton.
+    task_driver.py                        Temporal-style bounded task workflow skeleton.
   activities/
-    contracts.py            Activity interfaces; side effects live behind these contracts.
+    contracts.py                          Activity interfaces; side effects live behind these contracts.
   policies/
-    progress.py             Material-progress/no-op detection policy.
-    escalation.py           El-Le vs zo-el escalation routing policy.
+    progress.py                           Material-progress/no-op detection policy.
+    escalation.py                         El-Le vs zo-el escalation routing policy.
   adapters/
-    hermes.py               Placeholder adapter boundary for Hermes/Kanban/GitHub workers.
+    hermes.py                             Placeholder adapter boundary for Hermes/Kanban/GitHub workers.
 examples/
-  agent_toolkit_slice_1.yaml  Example config named after the concrete project slice.
+  agent_toolkit_slice_1.yaml              Example config named after the concrete project slice.
 tests/
-  test_policies.py          Pure deterministic policy tests.
+  test_policies.py                        Pure deterministic policy tests.
 ```
 
 ## Current status
