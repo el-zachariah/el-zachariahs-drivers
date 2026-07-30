@@ -46,7 +46,7 @@ src/el_zachariahs_drivers/
   adapters/
     hermes.py               Placeholder adapter boundary for Hermes/Kanban/GitHub workers.
 examples/
-  software_project.yaml     Example project configuration.
+  agent_toolkit_slice_1.yaml  Example config named after the concrete project slice.
 tests/
   test_policies.py          Pure deterministic policy tests.
 ```
