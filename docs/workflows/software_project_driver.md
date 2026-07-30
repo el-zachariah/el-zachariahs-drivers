@@ -57,9 +57,11 @@ stateDiagram-v2
 
   FINAL_REPORT --> DONE: FINAL_REPORT_DELIVERED
 
-  BLOCKED_NEEDS_EL_LE --> PLANNING: process unblock preserves outcome
-  BLOCKED_NEEDS_EL_LE --> PLAN_RETHINK: process unblock requires rethink
+  BLOCKED_NEEDS_EL_LE --> PLANNING: resume target says re-plan
+  BLOCKED_NEEDS_EL_LE --> PLAN_RETHINK: resume target says rethink
+  BLOCKED_NEEDS_EL_LE --> TASK_EXECUTION: resume target says resume child task
   BLOCKED_NEEDS_ZO_EL --> PLANNING: human decision changes scope
+  BLOCKED_NEEDS_ZO_EL --> TASK_EXECUTION: human decision unblocks child task
   BLOCKED_NEEDS_ZO_EL --> PROOF_RUNNING: human approves proof
   BLOCKED_NEEDS_ZO_EL --> FINAL_REPORT: human stops / accepts current artifact
 ```
@@ -89,6 +91,8 @@ stateDiagram-v2
 | `DONE` | Terminal success. | workflow | immutable summary | none |
 | `BLOCKED_NEEDS_EL_LE` | Process/developer unblock needed. | process steward | decision or diagnosis | resume or rethink |
 | `BLOCKED_NEEDS_ZO_EL` | Human authority/resource/product gate. | human approver | decision | resume, stop, or revise |
+
+Blocker transitions do not imply a generic jump to the end of a task or project. A blocker records a resume target: the blocked phase, allowed decision options, and the phase/activity to resume after resolution. The project driver uses that target to resume a child task, re-plan, continue proof/release work, cancel, or fail under policy.
 
 ## Terminal and failure policy
 

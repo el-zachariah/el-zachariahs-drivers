@@ -56,6 +56,13 @@ blocker: optional
   owner_role: process_steward | human_approver | project_intake_owner | developer | reviewer | proof_runner
   reason: string
   required_decision: string
+  blocked_phase: string
+  resume_phase_if_unblocked: string
+  resume_activity: optional string
+  decision_options:
+    - decision: string
+      resulting_phase: string
+      notes: string
 evidence_refs:
   - type: plan | task | commit | pull_request | review | command | proof | report | adapter_record
     uri: string
@@ -99,6 +106,10 @@ decision:
     - ActivityRequest
   wait_to_start: optional WaitPolicy
   blocker_to_record: optional Blocker
+  resume_target: optional
+    blocked_phase: string
+    resume_phase_if_unblocked: string
+    resume_activity: optional string
   evidence_refs:
     - EvidenceRef
   terminal_outcome: optional DONE | FAILED | CANCELLED
@@ -162,9 +173,25 @@ A valid blocker must include:
 - requested decision;
 - evidence references;
 - whether the current intake outcome is still preserved; and
-- the state to resume from if unblocked.
+- the phase/activity to resume from if unblocked.
 
 `BLOCKED_NEEDS_EL_LE` should mean process/developer ambiguity. `BLOCKED_NEEDS_ZO_EL` should mean product, resource, spending, credential, merge/release, or dogfood authority.
+
+### Resume target
+
+Every non-terminal blocker must carry explicit resume semantics:
+
+```yaml
+blocked_phase: string
+resume_phase_if_unblocked: string
+resume_activity: optional string
+decision_options:
+  - decision: string
+    resulting_phase: string
+    notes: string
+```
+
+The resume target prevents the workflow from treating a blocker as an endpoint. Resolution may resume the same phase, move backward for repair/rethink, move forward if the decision supplies missing authority, cancel the work, or fail the run under policy. The transition is chosen from the recorded decision options, not guessed from chat context.
 
 ## Driver interaction contract
 
@@ -179,6 +206,12 @@ progress_signals:
   - TASK_COMPLETED | TASK_RESCOPE_REQUESTED | BLOCKER_CREATED | TASK_FAILED | TASK_CANCELLED
 rescope_reason: optional string
 blocker: optional Blocker
+blocked_phase: optional string
+resume_phase_if_unblocked: optional string
+decision_options:
+  - decision: string
+    resulting_phase: string
+    notes: string
 repair_recommendations:
   - optional string
 ```

@@ -35,9 +35,10 @@ stateDiagram-v2
   FIXING_REVIEW --> IMPLEMENTING: accepted findings within loop limit
   FIXING_REVIEW --> RESCOPE_REQUESTED: loop limit exceeded or findings alter task scope
 
-  RESCOPE_REQUESTED --> [*]: return to project PLAN_RETHINK
-  BLOCKED_NEEDS_EL_LE --> [*]: return blocker to project/process steward
-  BLOCKED_NEEDS_ZO_EL --> [*]: return blocker to project/human approver
+  RESCOPE_REQUESTED --> RETURN_TO_PROJECT: rescope packet
+  BLOCKED_NEEDS_EL_LE --> RETURN_TO_PROJECT: blocker packet with resume target
+  BLOCKED_NEEDS_ZO_EL --> RETURN_TO_PROJECT: blocker packet with resume target
+  RETURN_TO_PROJECT --> [*]: child workflow returns control, not task success
   COMPLETE --> [*]
 ```
 
@@ -54,6 +55,7 @@ stateDiagram-v2
 | `REVIEW_WAIT` | Wait for review with threshold. | reviewer | approval/findings | complete, fix, or process block |
 | `FIXING_REVIEW` | Apply accepted review findings as a directed repair set. | developer | fixed findings, updated evidence | implement/test or rescope |
 | `RESCOPE_REQUESTED` | Task discovered the plan/intake needs rethinking. | task driver | rescope reason and evidence | return to project `PLAN_RETHINK` |
+| `RETURN_TO_PROJECT` | Child workflow hands a structured non-success packet to the project driver. | task driver | rescope or blocker packet with resume semantics | project decides resume/rethink/escalate/stop |
 | `COMPLETE` | Terminal task success. | task driver | completion evidence | return to project |
 | `BLOCKED_NEEDS_EL_LE` | Process/developer unblock needed. | process steward | precise blocker | return to project |
 | `BLOCKED_NEEDS_ZO_EL` | Human authority/resource/product gate. | human approver | precise blocker | return to project |
@@ -66,6 +68,32 @@ stateDiagram-v2
 - `CANCELLED` when the project driver or authorized owner stops the task.
 
 `RESCOPE_REQUESTED` and `BLOCKED_NEEDS_*` are not terminal failure claims by themselves. They are structured returns to the project driver with enough evidence for `PLAN_RETHINK`, process unblock, or human authority.
+
+The diagram's `RETURN_TO_PROJECT --> [*]` edge means the child task workflow has returned control to the parent project workflow. It does **not** mean the task is complete, failed, or impossible to resume.
+
+## Blocker resume semantics
+
+A task blocker must include the phase where work stopped and the intended resume behavior after the owner resolves it. Without that, the project driver would know that a task is blocked but not where or how to continue.
+
+Minimum blocker resume packet:
+
+```yaml
+blocked_phase: INSPECTING | IMPLEMENTING | TESTING | REVIEW_WAIT | FIXING_REVIEW
+resume_phase_if_unblocked: INSPECTING | IMPLEMENTING | TESTING | REVIEW_REQUESTED | REVIEW_WAIT | RESCOPE_REQUESTED | COMPLETE | CANCELLED
+resume_activity: optional string
+decision_options:
+  - decision: string
+    resulting_phase: string
+    notes: string
+```
+
+Examples:
+
+- A process-steward unblock during `REVIEW_WAIT` usually resumes at `REVIEW_WAIT` or `FIXING_REVIEW` depending on whether review findings arrived.
+- A human approval blocker during `IMPLEMENTING` may resume at `IMPLEMENTING` if approved, `RESCOPE_REQUESTED` if scope changed, or `CANCELLED` if the task is stopped.
+- A credential/resource blocker during `TESTING` usually resumes at `TESTING` after the resource is available.
+
+The parent project driver records this packet as the child task's suspension point. After unblock, the project driver may resume the same task workflow from the blocked phase, create a replacement task with updated input, enter `PLAN_RETHINK`, or stop the work if the authorized decision says so.
 
 ## Review repair loop
 
