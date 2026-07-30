@@ -12,18 +12,22 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class ProjectPhase(StrEnum):
-    PROJECT_ASSIGNED = "PROJECT_ASSIGNED"
+class ProjectIntakePhase(StrEnum):
+    PROJECT_INTAKE = "PROJECT_INTAKE"
+    PROJECT_SCOPING = "PROJECT_SCOPING"
     PROJECT_PLANNING = "PROJECT_PLANNING"
     TASK_BREAKDOWN = "TASK_BREAKDOWN"
     TASK_EXECUTION = "TASK_EXECUTION"
-    PR_INTEGRATION = "PR_INTEGRATION"
-    REVIEW_PHASE = "REVIEW_PHASE"
-    PROOF_PHASE = "PROOF_PHASE"
-    FEEDBACK_PHASE = "FEEDBACK_PHASE"
-    DOGFOOD_OR_MERGE_GATE = "DOGFOOD_OR_MERGE_GATE"
+    INTEGRATION = "INTEGRATION"
+    REVIEW_GATE = "REVIEW_GATE"
+    VALIDATION_GATE = "VALIDATION_GATE"
+    FEEDBACK_GATE = "FEEDBACK_GATE"
+    RELEASE_GATE = "RELEASE_GATE"
+    FINAL_REPORT = "FINAL_REPORT"
     DONE = "DONE"
-    BLOCKED = "BLOCKED"
+    BLOCKED_INTERNAL = "BLOCKED_INTERNAL"
+    BLOCKED_NEEDS_EL_LE = "BLOCKED_NEEDS_EL_LE"
+    BLOCKED_NEEDS_ZO_EL = "BLOCKED_NEEDS_ZO_EL"
 
 
 class TaskPhase(StrEnum):
@@ -74,7 +78,7 @@ class TaskState(BaseModel):
 class ProjectState(BaseModel):
     id: str
     title: str
-    phase: ProjectPhase = ProjectPhase.PROJECT_ASSIGNED
+    phase: ProjectIntakePhase = ProjectIntakePhase.PROJECT_INTAKE
     tasks: list[TaskState] = Field(default_factory=list)
     current_task_id: str | None = None
     pr_url: str | None = None
