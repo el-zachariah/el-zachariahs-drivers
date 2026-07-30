@@ -1,0 +1,12 @@
+id: agent-toolkit-slice-1
+title: Agent Toolkit Slice 1 context-integrity release
+repo: /home/zachariah/Documents/el-zachariah/repos/agent-toolkit
+pr_url: https://github.com/zo-el/agent-toolkit/pull/51
+project_driver: software_project
+task_driver: software_task
+principles:
+  - remote PR is the feedback artifact
+  - local-only work is not a milestone
+  - Temporal-style workflows own durable state
+  - agents perform bounded activities
+  - no-op loops must escalate instead of repeating

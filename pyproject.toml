@@ -1,0 +1,23 @@
+[project]
+name = "el-zachariahs-drivers"
+version = "0.1.0"
+description = "Durable project and task drivers for el-zachariah's software-development execution patterns."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "el-zachariah" }]
+dependencies = [
+  "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+temporal = ["temporalio>=1.7"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
