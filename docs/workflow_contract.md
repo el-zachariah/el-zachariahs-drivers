@@ -52,17 +52,7 @@ wait: optional
   started_at: timestamp
   threshold_at: timestamp
   retry_policy: string
-blocker: optional
-  owner_role: process_steward | human_approver | project_intake_owner | developer | reviewer | proof_runner
-  reason: string
-  required_decision: string
-  blocked_phase: string
-  resume_phase_if_unblocked: string
-  resume_activity: optional string
-  decision_options:
-    - decision: string
-      resulting_phase: string
-      notes: string
+blocker: optional Blocker
 evidence_refs:
   - type: plan | task | commit | pull_request | review | command | proof | report | adapter_record
     uri: string
@@ -106,10 +96,6 @@ decision:
     - ActivityRequest
   wait_to_start: optional WaitPolicy
   blocker_to_record: optional Blocker
-  resume_target: optional
-    blocked_phase: string
-    resume_phase_if_unblocked: string
-    resume_activity: optional string
   evidence_refs:
     - EvidenceRef
   terminal_outcome: optional DONE | FAILED | CANCELLED
@@ -181,21 +167,33 @@ A valid blocker must include:
 
 ### Resume target
 
-Every non-terminal blocker must carry explicit resume semantics:
+Use one canonical shape for non-terminal blockers. Do not spread resume fields beside the blocker in separate packet-specific locations.
 
 ```yaml
-blocked_phase: string
-resume_phase_if_unblocked: string
-resume_activity: optional string
-decision_options:
-  - decision: string
-    resulting_phase: string
-    notes: string
+Blocker:
+  owner_role: process_steward | human_approver | project_intake_owner | developer | reviewer | proof_runner
+  reason: string
+  required_decision: string
+  intake_outcome_preserved: boolean
+  evidence_refs:
+    - EvidenceRef
+  resume_target: ResumeTarget
+
+ResumeTarget:
+  blocked_phase: string
+  resume_phase_if_unblocked: string
+  resume_activity: optional string
+  decision_options:
+    - decision: string
+      resulting_phase: string
+      notes: string
 ```
 
-The resume target prevents the workflow from treating a blocker as an endpoint. Resolution may resume the same phase, move backward for repair/rethink, move forward if the decision supplies missing authority, cancel the work, or fail the run under policy. The transition is chosen from the recorded decision options, not guessed from chat context.
+Every non-terminal blocker must carry explicit resume semantics via `resume_target`. The resume target prevents the workflow from treating a blocker as an endpoint. Resolution may resume the same phase, move backward for repair/rethink, move forward if the decision supplies missing authority, cancel the work, or fail the run under policy. The transition is chosen from the recorded decision options, not guessed from chat context.
 
 This belongs in the engine contract, not only in the `SoftwareTaskDriver` template, because any durable workflow that can block must also be able to explain how it resumes.
+
+If a decision packet needs to expose a resume target for convenience, it should reference `blocker_to_record.resume_target`; it should not define a second partial `decision.resume_target` shape.
 
 ## Driver interaction contract
 
@@ -210,12 +208,6 @@ progress_signals:
   - TASK_COMPLETED | TASK_RESCOPE_REQUESTED | BLOCKER_CREATED | TASK_FAILED | TASK_CANCELLED
 rescope_reason: optional string
 blocker: optional Blocker
-blocked_phase: optional string
-resume_phase_if_unblocked: optional string
-decision_options:
-  - decision: string
-    resulting_phase: string
-    notes: string
 repair_recommendations:
   - optional string
 ```

@@ -124,9 +124,7 @@ activities_to_schedule:
 wait_to_start: optional
   awaited_signal: string
   threshold_at: timestamp
-blocker_to_record: optional
-  owner_role: string
-  required_decision: string
+blocker_to_record: optional Blocker
 evidence_refs:
   - type: plan | task | commit | pull_request | review | proof | report | adapter_record
     uri: string

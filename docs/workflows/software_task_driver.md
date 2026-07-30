@@ -78,13 +78,21 @@ A task blocker applies the engine-level blocker resume contract to the software-
 Minimum blocker resume packet:
 
 ```yaml
-blocked_phase: INSPECTING | IMPLEMENTING | TESTING | REVIEW_WAIT | FIXING_REVIEW
-resume_phase_if_unblocked: INSPECTING | IMPLEMENTING | TESTING | REVIEW_REQUESTED | REVIEW_WAIT | RESCOPE_REQUESTED | COMPLETE | CANCELLED
-resume_activity: optional string
-decision_options:
-  - decision: string
-    resulting_phase: string
-    notes: string
+blocker:
+  owner_role: process_steward | human_approver
+  reason: string
+  required_decision: string
+  intake_outcome_preserved: boolean
+  evidence_refs:
+    - EvidenceRef
+  resume_target:
+    blocked_phase: INSPECTING | IMPLEMENTING | TESTING | REVIEW_WAIT | FIXING_REVIEW
+    resume_phase_if_unblocked: INSPECTING | IMPLEMENTING | TESTING | REVIEW_REQUESTED | REVIEW_WAIT | RESCOPE_REQUESTED | COMPLETE | CANCELLED
+    resume_activity: optional string
+    decision_options:
+      - decision: string
+        resulting_phase: string
+        notes: string
 ```
 
 Examples:
@@ -125,6 +133,17 @@ blocker: optional
   owner_role: process_steward | human_approver
   reason: string
   required_decision: string
+  intake_outcome_preserved: boolean
+  evidence_refs:
+    - EvidenceRef
+  resume_target:
+    blocked_phase: string
+    resume_phase_if_unblocked: string
+    resume_activity: optional string
+    decision_options:
+      - decision: string
+        resulting_phase: string
+        notes: string
 progress_signals:
   - TASK_COMPLETED | TASK_RESCOPE_REQUESTED | BLOCKER_CREATED | TASK_FAILED | TASK_CANCELLED
 activity_results:
@@ -142,7 +161,7 @@ A task-driver run must not end with a silent observation. It must emit one of:
 - material progress: code changed, test evidence created, review requested/completed, findings fixed, task completed;
 - controlled wait: review wait timer or retry scheduled;
 - rescope: `RESCOPE_REQUESTED` with evidence and reason;
-- blocker: owner role plus required decision;
+- blocker: canonical `Blocker` with owner role, required decision, evidence refs, and resume target;
 - terminal failed/cancelled/done.
 
 If it emits none, the task run is `STALLED` and the project driver should not count it as progress. `STALLED` should be converted immediately into a retry, blocker, rescope, failure, or cancellation decision; it should not become another background wait state.
