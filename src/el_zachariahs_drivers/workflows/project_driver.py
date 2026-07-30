@@ -19,9 +19,13 @@ def next_project_phase(state: ProjectState) -> ProjectIntakePhase:
         return ProjectIntakePhase.PLAN_REVIEW
     if state.phase == ProjectIntakePhase.PLAN_REVIEW:
         return ProjectIntakePhase.TASK_BREAKDOWN
+    if state.phase == ProjectIntakePhase.PLAN_RETHINK:
+        return ProjectIntakePhase.TASK_BREAKDOWN
     if state.phase == ProjectIntakePhase.TASK_BREAKDOWN and state.tasks:
         return ProjectIntakePhase.TASK_EXECUTION
     if state.phase == ProjectIntakePhase.TASK_EXECUTION:
+        if any(task.phase == TaskPhase.RESCOPE_REQUESTED for task in state.tasks):
+            return ProjectIntakePhase.PLAN_RETHINK
         if all(task.phase == TaskPhase.COMPLETE for task in state.tasks):
             return ProjectIntakePhase.PR_OPEN
         return ProjectIntakePhase.TASK_EXECUTION

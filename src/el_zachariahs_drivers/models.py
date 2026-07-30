@@ -16,6 +16,7 @@ class ProjectIntakePhase(StrEnum):
     PROJECT_INTAKE_ASSIGNED = "PROJECT_INTAKE_ASSIGNED"
     PLANNING = "PLANNING"
     PLAN_REVIEW = "PLAN_REVIEW"
+    PLAN_RETHINK = "PLAN_RETHINK"
     TASK_BREAKDOWN = "TASK_BREAKDOWN"
     TASK_EXECUTION = "TASK_EXECUTION"
     PR_OPEN = "PR_OPEN"
@@ -36,14 +37,18 @@ class ProjectIntakePhase(StrEnum):
 
 
 class TaskPhase(StrEnum):
-    READY = "READY"
+    TASK_ASSIGNED = "TASK_ASSIGNED"
+    INSPECTING = "INSPECTING"
     CLAIMED = "CLAIMED"
     IMPLEMENTING = "IMPLEMENTING"
     TESTING = "TESTING"
-    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    REVIEW_REQUESTED = "REVIEW_REQUESTED"
+    REVIEW_WAIT = "REVIEW_WAIT"
     FIXING_REVIEW = "FIXING_REVIEW"
+    RESCOPE_REQUESTED = "RESCOPE_REQUESTED"
     COMPLETE = "COMPLETE"
-    BLOCKED = "BLOCKED"
+    BLOCKED_NEEDS_EL_LE = "BLOCKED_NEEDS_EL_LE"
+    BLOCKED_NEEDS_ZO_EL = "BLOCKED_NEEDS_ZO_EL"
 
 
 class ProgressSignal(StrEnum):
@@ -73,11 +78,14 @@ class Blocker(BaseModel):
 class TaskState(BaseModel):
     id: str
     title: str
-    phase: TaskPhase = TaskPhase.READY
+    phase: TaskPhase = TaskPhase.TASK_ASSIGNED
     owner: DriverActor = DriverActor.EL_ZACHARIAH
     acceptance: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     blocker: Blocker | None = None
+    review_loop_count: int = 0
+    max_review_loops: int = 3
+    rescope_reason: str | None = None
 
 
 class ProjectState(BaseModel):
