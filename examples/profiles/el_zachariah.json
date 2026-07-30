@@ -1,0 +1,13 @@
+{
+  "profile_id": "el-zachariah-dev-council",
+  "version": "2026-07-30",
+  "description": "Example runtime profile binding reusable workflow roles to el-zachariah council actors and neutral adapters.",
+  "role_bindings": [
+    {"role": "project_intake_owner", "actor": "el-zachariah", "kind": "agent", "adapter": "github+local"},
+    {"role": "developer", "actor": "el-zachariah", "kind": "agent", "adapter": "github+local"},
+    {"role": "reviewer", "actor": "el-micaiah", "kind": "agent", "adapter": "github-review"},
+    {"role": "proof_runner", "actor": "configured-proof-runner", "kind": "service", "adapter": "proof-command"},
+    {"role": "process_steward", "actor": "el-le", "kind": "agent", "adapter": "council-routing"},
+    {"role": "human_approver", "actor": "zo-el", "kind": "human", "adapter": "origin-thread"}
+  ]
+}
