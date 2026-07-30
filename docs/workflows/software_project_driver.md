@@ -88,6 +88,35 @@ stateDiagram-v2
 | `BLOCKED_NEEDS_EL_LE` | Process/developer unblock needed. | process steward | decision or diagnosis | resume or rethink |
 | `BLOCKED_NEEDS_ZO_EL` | Human authority/resource/product gate. | human approver | decision | resume, stop, or revise |
 
+## Role contract
+
+The workflow calls roles, not concrete people, chat surfaces, or queues.
+
+| Role | Responsibility | Typical bound actor in zo-el council | Output type |
+|---|---|---|---|
+| `project_intake_owner` | Own plan, rethink, task breakdown, final report. | el-zachariah | plan, task list, final report |
+| `developer` | Execute bounded tasks and repairs. | el-zachariah | commits, PR updates, test evidence |
+| `reviewer` | Independent plan/code/proof review. | Micaiah or configured reviewer | approval/findings |
+| `proof_runner` | Run approved proof/validation packet. | configured agent/service | proof evidence |
+| `process_steward` | Diagnose workflow/process/dispatch ambiguity. | El-Le/default-equivalent | process decision |
+| `human_approver` | Product/resource/merge/dogfood authority. | zo-el/requester | approval/denial/scope decision |
+
+Runtime adapter config binds these roles to concrete tools. The workflow should not hardcode Kanban, Discord, Hermes profile names, or GitHub review mechanics.
+
+## Wait and stall policy
+
+Every wait state must define an awaited signal and an escalation threshold.
+
+| Wait state | Awaited signal | Controlled wait output | Threshold response |
+|---|---|---|---|
+| `REVIEW_WAIT` | review approval/findings | `WAIT_TIMER_STARTED` or `RETRY_SCHEDULED` | `BLOCKED_NEEDS_EL_LE` |
+| `PROOF_AUTH_WAIT` | human approval/denial signal | `WAIT_TIMER_STARTED` | `BLOCKED_NEEDS_ZO_EL` only when explicit decision is required |
+| `FEEDBACK_WAIT` | feedback accepted/changes signal | `WAIT_TIMER_STARTED` | final reminder or `BLOCKED_NEEDS_ZO_EL` |
+| `DOGFOOD_GATE` | dogfood approval/evidence | `WAIT_TIMER_STARTED` | `BLOCKED_NEEDS_ZO_EL` |
+| `MERGE_GATE` | merge/release approval/evidence | `WAIT_TIMER_STARTED` | `BLOCKED_NEEDS_ZO_EL` |
+
+A repeated observation of the same state is never progress. It is valid only if the run also records a controlled wait with a timer/signal condition.
+
 ## Run invariant
 
 Every project-driver tick/activity completion must result in exactly one of:

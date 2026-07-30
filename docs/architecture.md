@@ -8,26 +8,30 @@ The core design is intentionally not tied to Hermes Kanban, Discord, or any sing
 
 ```mermaid
 flowchart TD
-  User[zo-el / requester] -->|assigns work| ProjectDriver[Software Project Driver]
+  User[zo-el / requester] -->|assigns durable work| ProjectDriver[SoftwareProjectDriver]
 
-  ProjectDriver -->|plans, scopes, creates tasks| ProjectState[(Durable Project State)]
-  ProjectDriver -->|runs task workflow| TaskDriver[Software Task Driver]
-  TaskDriver --> TaskState[(Durable Task State)]
+  ProjectDriver -->|persists lifecycle| ProjectState[(Durable project state)]
+  ProjectDriver -->|starts bounded work| TaskDriver[SoftwareTaskDriver]
+  TaskDriver -->|persists task lifecycle| TaskState[(Durable task state)]
 
-  ProjectDriver -->|schedule role activity| Activities[Workflow Activities]
-  TaskDriver -->|schedule role activity| Activities
+  ProjectDriver -->|schedule role-based activity| Activities[Activity contracts]
+  TaskDriver -->|schedule role-based activity| Activities
 
-  Activities --> Adapters[Adapter Layer]
-  Adapters --> GitHub[GitHub PRs / reviews / checks]
-  Adapters --> Hermes[Hermes agent profiles]
-  Adapters --> Temporal[Temporal timers / signals]
-  Adapters --> HumanGateway[Human approval channel]
+  Activities --> Roles[Workflow roles]
+  Roles --> IntakeOwner[project_intake_owner]
+  Roles --> Developer[developer]
+  Roles --> Reviewer[reviewer]
+  Roles --> Steward[process_steward]
+  Roles --> Approver[human_approver]
 
-  Activities --> Dev[Developer role]
-  Activities --> Reviewer[Reviewer role]
-  Activities --> Steward[Process steward role]
-  Activities --> Approver[Human approver role]
+  Activities --> AdapterConfig[Runtime adapter config]
+  AdapterConfig --> GitHub[GitHub adapter]
+  AdapterConfig --> AgentRuntime[Agent-runtime adapter]
+  AdapterConfig --> HumanGateway[Human approval adapter]
+  AdapterConfig --> ServiceAdapters[CI / proof / storage adapters]
 ```
+
+The core workflow never depends on a concrete transport such as Kanban, Discord, or a specific agent CLI. Those live behind adapter configuration.
 
 ## Design principles
 
@@ -51,7 +55,15 @@ flowchart LR
 
 ## Driver split
 
-- **Project driver**: owns lifecycle, planning, task breakdown, gates, and final reporting.
+- **Project driver**: owns lifecycle, planning, task breakdown, gates, waits, blockers, and final reporting.
 - **Task driver**: owns one bounded software task: inspect, implement, test, review/fix loop, complete, block, or request rescope.
 
 The project driver may create many task-driver runs. A small job can still enter the project driver if it needs durable state, but simple one-shot work should go directly to a task driver or normal agent execution.
+
+## v1 build target
+
+The first production slice should not attempt to be a general agent operating system. Build one vertical well:
+
+> assigned software-development intake → plan → bounded tasks → PR → review → validation/proof as configured → feedback/release gates → final report.
+
+The acceptance test for v1 is that a project can be resumed after process restart and still answer: current phase, current task, next trigger, last material progress, blocker owner if any, and final-report path when done.

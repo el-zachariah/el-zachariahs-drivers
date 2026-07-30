@@ -82,3 +82,15 @@ blocker: optional actionable blocker
 progress_signals:
   - TASK_COMPLETED | TASK_RESCOPE_REQUESTED | BLOCKER_CREATED | ...
 ```
+
+## Task run invariant
+
+A task-driver run must not end with a silent observation. It must emit one of:
+
+- material progress: code changed, test evidence created, review requested/completed, findings fixed, task completed;
+- controlled wait: review wait timer or retry scheduled;
+- rescope: `RESCOPE_REQUESTED` with evidence and reason;
+- blocker: owner role plus required decision;
+- terminal failed/done.
+
+If it emits none, the task run is `STALLED` and the project driver should not count it as progress.
