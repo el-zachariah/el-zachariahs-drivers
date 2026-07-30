@@ -2,6 +2,8 @@
 
 The software task driver is the bounded inner workflow. It executes one task created by the project driver or directly assigned when a job is small enough to avoid full project orchestration.
 
+This page defines the task lifecycle. The shared state/event/activity/wait/blocker contract lives in [`../workflow_contract.md`](../workflow_contract.md) and defines the durable packet a task returns to the project driver.
+
 ## State diagram
 
 ```mermaid
@@ -56,6 +58,15 @@ stateDiagram-v2
 | `BLOCKED_NEEDS_EL_LE` | Process/developer unblock needed. | process steward | precise blocker | return to project |
 | `BLOCKED_NEEDS_ZO_EL` | Human authority/resource/product gate. | human approver | precise blocker | return to project |
 
+## Terminal and failure policy
+
+`COMPLETE` is the successful task outcome. A task may also return shared terminal outcomes from the workflow contract:
+
+- `FAILED` when the task cannot continue safely after its retry/review-loop policy is exhausted and the failure does not require a planning rethink.
+- `CANCELLED` when the project driver or authorized owner stops the task.
+
+`RESCOPE_REQUESTED` and `BLOCKED_NEEDS_*` are not terminal failure claims by themselves. They are structured returns to the project driver with enough evidence for `PLAN_RETHINK`, process unblock, or human authority.
+
 ## Review repair loop
 
 `FIXING_REVIEW` is a bounded directed loop, not an infinite patch cycle.
@@ -74,13 +85,24 @@ A completed or blocked task should return:
 
 ```yaml
 task_id: string
-phase: COMPLETE | RESCOPE_REQUESTED | BLOCKED_NEEDS_EL_LE | BLOCKED_NEEDS_ZO_EL
-evidence:
-  - command/result, PR URL, commit, file path, or review link
+phase: COMPLETE | RESCOPE_REQUESTED | BLOCKED_NEEDS_EL_LE | BLOCKED_NEEDS_ZO_EL | FAILED | CANCELLED
+evidence_refs:
+  - type: command | commit | pull_request | review | proof | adapter_record
+    uri: string
+    digest: optional string
 rescope_reason: optional string
-blocker: optional actionable blocker
+blocker: optional
+  owner_role: process_steward | human_approver
+  reason: string
+  required_decision: string
 progress_signals:
-  - TASK_COMPLETED | TASK_RESCOPE_REQUESTED | BLOCKER_CREATED | ...
+  - TASK_COMPLETED | TASK_RESCOPE_REQUESTED | BLOCKER_CREATED | TASK_FAILED | TASK_CANCELLED
+activity_results:
+  - activity_id: string
+    idempotency_key: string
+    accepted: boolean
+    evidence_refs:
+      - string
 ```
 
 ## Task run invariant
@@ -91,6 +113,6 @@ A task-driver run must not end with a silent observation. It must emit one of:
 - controlled wait: review wait timer or retry scheduled;
 - rescope: `RESCOPE_REQUESTED` with evidence and reason;
 - blocker: owner role plus required decision;
-- terminal failed/done.
+- terminal failed/cancelled/done.
 
-If it emits none, the task run is `STALLED` and the project driver should not count it as progress.
+If it emits none, the task run is `STALLED` and the project driver should not count it as progress. `STALLED` should be converted immediately into a retry, blocker, rescope, failure, or cancellation decision; it should not become another background wait state.

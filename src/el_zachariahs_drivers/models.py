@@ -60,6 +60,8 @@ class ProgressSignal(StrEnum):
     TASKS_CREATED = "TASKS_CREATED"
     TASK_STARTED = "TASK_STARTED"
     TASK_COMPLETED = "TASK_COMPLETED"
+    TASK_FAILED = "TASK_FAILED"
+    TASK_CANCELLED = "TASK_CANCELLED"
     TASK_RESCOPE_REQUESTED = "TASK_RESCOPE_REQUESTED"
     PR_CREATED = "PR_CREATED"
     PR_UPDATED = "PR_UPDATED"
@@ -101,7 +103,7 @@ class RunOutcome(StrEnum):
 class DriverActor(StrEnum):
     EL_ZACHARIAH = "el-zachariah"
     MICAIAH = "el-micaiah"
-    EL_LE = "el-lee"
+    EL_LE = "el-le"
     ZO_EL = "zo-el"
 
 

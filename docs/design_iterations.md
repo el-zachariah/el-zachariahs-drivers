@@ -32,11 +32,17 @@ This note records five critique passes over the initial driver proposal and the 
 
 **Decision:** v1 should implement one vertical: software-development project delivery. The product should prove it can drive one project from intake through plan, tasks, PR, review, validation/proof, feedback, release gates, and final report.
 
-## Clear recommendation after five passes
+## Pass 6 — Add the contract layer before implementation
+
+**Critique:** The lifecycle diagrams are strong, but diagrams alone do not prevent implementation drift. The first code slice could still hide state in adapters, schedule non-idempotent side effects, or lose enough transition context that a restart cannot explain the run.
+
+**Decision:** Add a shared workflow contract for durable state records, typed events/decisions, role-based activity requests, wait policies, blockers, evidence refs, and terminal outcomes. Implement that contract before broad adapter work.
+
+## Clear recommendation after six passes
 
 Build `el-zachariahs-drivers` as a Temporal-style software-development workflow system with two drivers:
 
 1. **SoftwareProjectDriver** — durable outer lifecycle for project/milestone/job execution.
 2. **SoftwareTaskDriver** — bounded inner lifecycle for one task.
 
-Keep core workflows role-based and adapter-neutral. Add Temporal implementations only after the workflow docs are tight enough that each state has explicit inputs, outputs, progress signals, wait policy, blocker policy, and next transition.
+Keep core workflows role-based and adapter-neutral. Add Temporal implementations only after the workflow docs are tight enough that each state has explicit inputs, outputs, progress signals, wait policy, blocker policy, evidence refs, terminal outcomes, and next transition.
