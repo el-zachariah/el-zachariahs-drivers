@@ -13,18 +13,20 @@ def next_project_phase(state: ProjectState) -> ProjectIntakePhase:
     """Pure phase transition sketch for the software project lifecycle."""
     if state.blocker:
         return ProjectIntakePhase.BLOCKED_NEEDS_EL_LE
-    if state.phase == ProjectIntakePhase.PROJECT_INTAKE:
-        return ProjectIntakePhase.PROJECT_SCOPING
-    if state.phase == ProjectIntakePhase.PROJECT_SCOPING:
-        return ProjectIntakePhase.PROJECT_PLANNING
-    if state.phase == ProjectIntakePhase.PROJECT_PLANNING:
+    if state.phase == ProjectIntakePhase.PROJECT_INTAKE_ASSIGNED:
+        return ProjectIntakePhase.PLANNING
+    if state.phase == ProjectIntakePhase.PLANNING:
+        return ProjectIntakePhase.PLAN_REVIEW
+    if state.phase == ProjectIntakePhase.PLAN_REVIEW:
         return ProjectIntakePhase.TASK_BREAKDOWN
     if state.phase == ProjectIntakePhase.TASK_BREAKDOWN and state.tasks:
         return ProjectIntakePhase.TASK_EXECUTION
     if state.phase == ProjectIntakePhase.TASK_EXECUTION:
         if all(task.phase == TaskPhase.COMPLETE for task in state.tasks):
-            return ProjectIntakePhase.INTEGRATION
+            return ProjectIntakePhase.PR_OPEN
         return ProjectIntakePhase.TASK_EXECUTION
-    if state.phase == ProjectIntakePhase.INTEGRATION and state.pr_url:
-        return ProjectIntakePhase.REVIEW_GATE
+    if state.phase == ProjectIntakePhase.PR_OPEN and state.pr_url:
+        return ProjectIntakePhase.REVIEW_REQUESTED
+    if state.phase == ProjectIntakePhase.REVIEW_REQUESTED:
+        return ProjectIntakePhase.REVIEW_WAIT
     return state.phase
