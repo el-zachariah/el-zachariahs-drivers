@@ -39,9 +39,11 @@ class LocalActivityRunner:
     """Run registered activity handlers with local idempotency protection.
 
     This is not a production queue. It is a deterministic boundary for unit tests,
-    local smoke runs, and future adapters: repeated idempotency keys do not invoke
-    the handler again and return a duplicate-skip envelope that points at the
-    previously completed activity.
+    local smoke runs, and future adapters: repeated matching requests for an
+    idempotency key do not invoke the handler again and return a duplicate-skip
+    envelope that points at the previously completed activity. Reusing an
+    idempotency key for a materially different request fails closed instead of
+    silently dropping a side effect.
     """
 
     def __init__(
@@ -53,11 +55,31 @@ class LocalActivityRunner:
         self._handlers = dict(handlers)
         self._clock = clock
         self._completed_by_idempotency_key: dict[str, ActivityResultEnvelope] = {}
+        self._request_signature_by_idempotency_key: dict[str, str] = {}
 
     def run(self, request: ActivityRequest) -> ActivityResultEnvelope:
         previous = self._completed_by_idempotency_key.get(request.idempotency_key)
         if previous is not None:
             timestamp = self._clock()
+            previous_signature = self._request_signature_by_idempotency_key[
+                request.idempotency_key
+            ]
+            current_signature = self._request_signature(request)
+            if current_signature != previous_signature:
+                return ActivityResultEnvelope(
+                    activity_id=request.activity_id,
+                    activity_type=request.activity_type,
+                    idempotency_key=request.idempotency_key,
+                    role=request.role,
+                    status=ActivityStatus.FAILED,
+                    started_at=timestamp,
+                    finished_at=timestamp,
+                    output={"previous_activity_id": previous.activity_id},
+                    error=(
+                        "idempotency key collision: request does not match "
+                        "previously completed activity"
+                    ),
+                )
             return ActivityResultEnvelope(
                 activity_id=request.activity_id,
                 activity_type=request.activity_type,
@@ -87,7 +109,18 @@ class LocalActivityRunner:
         self._validate_result_matches_request(request, result)
         if result.status == ActivityStatus.SUCCEEDED:
             self._completed_by_idempotency_key[request.idempotency_key] = result
+            self._request_signature_by_idempotency_key[request.idempotency_key] = (
+                self._request_signature(request)
+            )
         return result
+
+    @staticmethod
+    def _request_signature(request: ActivityRequest) -> str:
+        """Return the retry-stable fields that make an idempotency key reusable."""
+        return request.model_dump_json(
+            exclude={"activity_id"},
+            exclude_none=False,
+        )
 
     @staticmethod
     def _validate_result_matches_request(

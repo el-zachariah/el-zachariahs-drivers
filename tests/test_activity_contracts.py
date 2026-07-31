@@ -24,13 +24,14 @@ def request(
     *,
     activity_id: str = "act-1",
     activity_type: str = "run_tests",
+    role: WorkflowRole = WorkflowRole.DEVELOPER,
     idempotency_key: str = "wf-1:run-tests",
     required_evidence: list[str] | None = None,
 ) -> ActivityRequest:
     return ActivityRequest(
         activity_id=activity_id,
         activity_type=activity_type,
-        role=WorkflowRole.DEVELOPER,
+        role=role,
         purpose="run verification command",
         acceptance_criteria=["verification command exits zero"],
         allowed_side_effects=[ActivitySideEffect.COMMAND],
@@ -126,6 +127,37 @@ def test_local_activity_runner_skips_duplicate_idempotency_key_without_handler_c
     assert duplicate.output == {"previous_activity_id": "act-1"}
     assert duplicate.evidence_refs == []
     assert calls == ["act-1"]
+
+
+def test_local_activity_runner_fails_idempotency_collision_without_handler_call():
+    calls: list[str] = []
+
+    def fake_handler(req: ActivityRequest) -> ActivityResultEnvelope:
+        calls.append(req.activity_type)
+        return result_for(req)
+
+    runner = LocalActivityRunner(
+        {"run_tests": fake_handler, "open_pr": fake_handler},
+        clock=lambda: "2026-07-31T06:00:04Z",
+    )
+
+    first = runner.run(request())
+    collision = runner.run(
+        request(
+            activity_id="act-2",
+            activity_type="open_pr",
+            role=WorkflowRole.PROJECT_INTAKE_OWNER,
+            idempotency_key="wf-1:run-tests",
+        )
+    )
+
+    assert first.status == ActivityStatus.SUCCEEDED
+    assert collision.status == ActivityStatus.FAILED
+    assert collision.error == (
+        "idempotency key collision: request does not match previously completed activity"
+    )
+    assert collision.output == {"previous_activity_id": "act-1"}
+    assert calls == ["run_tests"]
 
 
 def test_local_activity_runner_returns_failed_envelope_for_missing_handler():
