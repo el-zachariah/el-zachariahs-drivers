@@ -85,4 +85,13 @@ tests/
 
 ## Current status
 
-Bones only. The first review goal is to discuss each file and agree whether the concepts/files are right before deeper implementation.
+The designed v1 vertical is implemented through the optional thin Temporal-compatible skeleton:
+
+- executable engine contract models, replay semantics, and runtime profiles;
+- contract-aligned software project/task decision helpers that emit `WorkflowDecision`;
+- template phase policies for allowed signals, waits, blockers, and terminal outcomes;
+- adapter-neutral activity contracts with idempotent local-runner result envelopes;
+- local durable JSON state store, replay, and status CLI; and
+- optional Temporal-compatible planning boundary that remains adapter-neutral.
+
+The repository is still pre-release: the current runtime is local-file backed, adapters are intentionally fake/local, and production Temporal workers or external transport bindings are out of scope until explicitly designed.
