@@ -1,0 +1,13 @@
+{
+  "profile_id": "neutral-local-dev",
+  "version": "2026-07-30",
+  "description": "Neutral runtime profile used to prove engine roles are not hardcoded to one council/profile.",
+  "role_bindings": [
+    {"role": "project_intake_owner", "actor": "planner-service", "kind": "service", "adapter": "memory"},
+    {"role": "developer", "actor": "implementation-worker", "kind": "service", "adapter": "sandbox"},
+    {"role": "reviewer", "actor": "review-worker", "kind": "service", "adapter": "sandbox"},
+    {"role": "proof_runner", "actor": "proof-worker", "kind": "service", "adapter": "sandbox"},
+    {"role": "process_steward", "actor": "ops-worker", "kind": "service", "adapter": "memory"},
+    {"role": "human_approver", "actor": "requester", "kind": "human", "adapter": "configured-channel"}
+  ]
+}
