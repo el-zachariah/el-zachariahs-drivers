@@ -129,6 +129,31 @@ def test_job_error_metadata_gets_attention_status(tmp_path: Path) -> None:
     assert job.custom_view.kind == "maintenance-growth"
 
 
+def test_known_local_job_patterns_get_specific_views_without_substring_false_positive(tmp_path: Path) -> None:
+    profiles = tmp_path / "profiles"
+    cron = profiles / "agent" / "cron"
+    cron.mkdir(parents=True)
+    (cron / "jobs.json").write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {"id": "first", "name": "first-dollar customer acquisition pulse", "enabled": False},
+                    {"id": "revenue", "name": "buyer-first-revenue-loop", "enabled": False},
+                    {"id": "health", "name": "Micaiah cron self-check and recovery gate", "enabled": True},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dashboard = discover_local_agents(profiles)
+
+    kinds = {job.id: job.custom_view.kind for job in dashboard.agents[0].jobs}
+    assert kinds["first"] == "wealth-hunter-revenue"
+    assert kinds["revenue"] == "revenue-experiment"
+    assert kinds["health"] == "agent-health-check"
+
+
 def test_render_dashboard_writes_index_data_and_agent_detail(tmp_path: Path) -> None:
     profiles = tmp_path / "profiles"
     cron = profiles / "agent-one" / "cron"

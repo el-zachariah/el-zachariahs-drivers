@@ -106,7 +106,7 @@ Detection rules:
 - jobs are read from `<profile>/cron/jobs.json` in either `{"jobs": [...]}` or list form;
 - latest job output is detected from `<profile>/cron/output/<job_id>/*.md`;
 - unknown/new jobs always get a default card with ID, schedule, enabled state, cron state, last status/error, repeat counters, workdir, toolsets, prompt preview, output, raw metadata keys, and a hint to add a custom view later;
-- known local patterns get custom views and optimization hints: GitHub/PR/review monitors, Proton/inbox monitors, local-agents UI drivers, agent-toolkit drivers, watchdog/sentinel jobs, and curator/growth loops;
+- known local patterns get custom views and optimization hints: GitHub/PR/review monitors, Proton/inbox monitors, local-agents UI drivers, agent-toolkit drivers, wealth-hunter/first-dollar loops, revenue experiments, agent health/readiness checks, watchdog/sentinel jobs, and curator/growth loops;
 - jobs with `last_error` render as error/attention cards so stale failures are visible without inspecting raw cron JSON.
 
 Agent-side cron/pattern guidance shown by the UI follows the durable driver invariant: unchanged status checks are controlled wait, not progress; repeated empty monitors should keep seen-state ledgers and return `[SILENT]`; active project-driver crons should end/remove themselves when the backlog is complete.

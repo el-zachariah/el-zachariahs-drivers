@@ -307,7 +307,7 @@ def _custom_view_for_job(
             fields=base_fields,
             optimization_hints=["Keep a seen-state ledger so repeated empty inbox scans can return [SILENT]."],
         )
-    if "local-agents" in lower or "ui" in lower:
+    if "local-agents" in lower or "local agents" in lower or "ui" in words:
         return JobCustomView(
             kind="local-agents-ui-driver",
             title="Local agents UI driver",
@@ -325,6 +325,39 @@ def _custom_view_for_job(
             summary="Moves agent-toolkit implementation slices through PR and review gates.",
             fields=base_fields,
             optimization_hints=["Prefer small branch slices and re-check live PR state before every write."],
+        )
+    if "wealth" in words or "first-dollar" in lower or "first dollar" in lower:
+        return JobCustomView(
+            kind="wealth-hunter-revenue",
+            title="Wealth hunter / first-dollar loop",
+            summary="Tracks concrete revenue or buyer-acquisition work and should avoid activity-only reports.",
+            fields=base_fields | {"latest_output": output.path if output else "none detected"},
+            optimization_hints=[
+                "Report only verified revenue movement, buyer contact changes, or a new human-owned blocker.",
+                "Paused/expired deadline jobs should stay visible but not wake users unless reactivated intentionally.",
+            ],
+        )
+    if "revenue" in words or "buyer" in words or "customer" in words:
+        return JobCustomView(
+            kind="revenue-experiment",
+            title="Revenue experiment loop",
+            summary="Moves buyer-facing experiments toward validated exposure, payment, or customer feedback.",
+            fields=base_fields | {"latest_output": output.path if output else "none detected"},
+            optimization_hints=[
+                "Separate durable experiment evidence from chat updates.",
+                "Prefer externally observable buyer/payment signals over internal asset churn.",
+            ],
+        )
+    if "self" in words and "check" in words or "readiness" in words or "recovery" in words:
+        return JobCustomView(
+            kind="agent-health-check",
+            title="Agent health/readiness check",
+            summary="Verifies agent-owned surfaces, cron health, or readiness state before escalating issues.",
+            fields=base_fields | {"latest_output": output.path if output else "none detected"},
+            optimization_hints=[
+                "Empty/healthy checks should produce [SILENT] or controlled wait.",
+                "Escalate only changed failures with owner and required decision/action.",
+            ],
         )
     if any(token in lower for token in ["watchdog", "sentinel"]):
         return JobCustomView(
