@@ -145,6 +145,32 @@ def test_task_blocker_transition_preserves_durable_blocker_and_human_owner_route
     assert decision.blocker_to_record == durable_blocker
 
 
+def test_already_blocked_task_transition_is_controlled_wait_not_new_blocker_progress():
+    durable_blocker = blocker(WorkflowRole.HUMAN_APPROVER)
+    task = TaskState(
+        id="t1",
+        title="Still blocked",
+        phase=TaskPhase.BLOCKED_NEEDS_ZO_EL,
+        blocker=durable_blocker,
+    )
+
+    with pytest.raises(ValueError, match="already-blocked task transitions require a durable wait policy"):
+        decide_next_task_transition(task, decided_at="2026-07-31T04:40:04Z")
+
+    decision = decide_next_task_transition(
+        task,
+        decided_at="2026-07-31T04:40:04Z",
+        wait_to_start=wait_policy(),
+    )
+
+    assert decision.to_phase == TaskPhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.material_progress is False
+    assert decision.progress_signal == ProgressSignal.WAIT_TIMER_STARTED
+    assert decision.wait_to_start == wait_policy()
+    assert decision.blocker_to_record == durable_blocker
+
+
+
 def test_project_transition_helper_emits_workflow_decision():
     project = ProjectState(id="p1", title="Planning", phase=ProjectIntakePhase.PLANNING)
 
@@ -177,6 +203,29 @@ def test_project_same_phase_task_execution_requires_durable_wait():
     assert decision.wait_to_start == wait_policy()
 
 
+def test_project_review_wait_transition_requires_durable_wait_policy():
+    project = ProjectState(
+        id="p1",
+        title="Await review",
+        phase=ProjectIntakePhase.REVIEW_REQUESTED,
+    )
+
+    with pytest.raises(ValueError, match="review wait transitions require wait_to_start"):
+        decide_next_project_transition(project, decided_at="2026-07-31T04:40:06Z")
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-07-31T04:40:06Z",
+        wait_to_start=wait_policy(),
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.REVIEW_WAIT
+    assert decision.material_progress is False
+    assert decision.progress_signal == ProgressSignal.WAIT_TIMER_STARTED
+    assert decision.wait_to_start == wait_policy()
+
+
+
 def test_project_blocker_transition_preserves_durable_blocker():
     durable_blocker = blocker()
     project = ProjectState(
@@ -191,6 +240,32 @@ def test_project_blocker_transition_preserves_durable_blocker():
     assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_EL_LE
     assert decision.progress_signal == ProgressSignal.BLOCKER_CREATED
     assert decision.blocker_to_record == durable_blocker
+
+
+def test_already_blocked_project_transition_is_controlled_wait_not_new_blocker_progress():
+    durable_blocker = blocker()
+    project = ProjectState(
+        id="p1",
+        title="Still blocked",
+        phase=ProjectIntakePhase.BLOCKED_NEEDS_EL_LE,
+        blocker=durable_blocker,
+    )
+
+    with pytest.raises(ValueError, match="already-blocked project transitions require a durable wait policy"):
+        decide_next_project_transition(project, decided_at="2026-07-31T04:40:07Z")
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-07-31T04:40:07Z",
+        wait_to_start=wait_policy(),
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_EL_LE
+    assert decision.material_progress is False
+    assert decision.progress_signal == ProgressSignal.WAIT_TIMER_STARTED
+    assert decision.wait_to_start == wait_policy()
+    assert decision.blocker_to_record == durable_blocker
+
 
 
 def test_project_final_report_decision_is_terminal_done():

@@ -36,7 +36,7 @@ PROJECT_TRANSITION_SIGNALS: dict[tuple[ProjectIntakePhase, ProjectIntakePhase], 
     (ProjectIntakePhase.TASK_EXECUTION, ProjectIntakePhase.PLAN_RETHINK): ProgressSignal.TASK_RESCOPE_REQUESTED,
     (ProjectIntakePhase.TASK_EXECUTION, ProjectIntakePhase.PR_OPEN): ProgressSignal.TASK_COMPLETED,
     (ProjectIntakePhase.PR_OPEN, ProjectIntakePhase.REVIEW_REQUESTED): ProgressSignal.PR_CREATED,
-    (ProjectIntakePhase.REVIEW_REQUESTED, ProjectIntakePhase.REVIEW_WAIT): ProgressSignal.REVIEW_REQUESTED,
+    (ProjectIntakePhase.REVIEW_REQUESTED, ProjectIntakePhase.REVIEW_WAIT): ProgressSignal.WAIT_TIMER_STARTED,
     (ProjectIntakePhase.FINAL_REPORT, ProjectIntakePhase.DONE): ProgressSignal.FINAL_REPORT_DELIVERED,
 }
 
@@ -82,6 +82,19 @@ def decide_next_project_transition(
     progress_signal = PROJECT_TRANSITION_SIGNALS.get((state.phase, next_phase))
 
     if state.blocker:
+        if next_phase == state.phase:
+            if wait_to_start is None:
+                raise ValueError("already-blocked project transitions require a durable wait policy")
+            return WorkflowDecision(
+                decision_id=decision_id or f"{state.id}:{state.phase}:blocked-wait",
+                decided_at=decided_at,
+                from_phase=state.phase,
+                to_phase=next_phase,
+                material_progress=False,
+                progress_signal=ProgressSignal.WAIT_TIMER_STARTED,
+                wait_to_start=wait_to_start,
+                blocker_to_record=state.blocker,
+            )
         return WorkflowDecision(
             decision_id=decision_id or f"{state.id}:{state.phase}:blocked",
             decided_at=decided_at,
@@ -101,6 +114,19 @@ def decide_next_project_transition(
             material_progress=True,
             progress_signal=progress_signal,
             terminal_outcome=TerminalOutcome.DONE,
+        )
+
+    if progress_signal == ProgressSignal.WAIT_TIMER_STARTED:
+        if wait_to_start is None:
+            raise ValueError("review wait transitions require wait_to_start")
+        return WorkflowDecision(
+            decision_id=decision_id or f"{state.id}:{state.phase}:wait",
+            decided_at=decided_at,
+            from_phase=state.phase,
+            to_phase=next_phase,
+            material_progress=False,
+            progress_signal=progress_signal,
+            wait_to_start=wait_to_start,
         )
 
     if next_phase == state.phase:

@@ -75,6 +75,19 @@ def decide_next_task_transition(
     progress_signal = TASK_TRANSITION_SIGNALS.get((state.phase, next_phase))
 
     if state.blocker:
+        if next_phase == state.phase:
+            if wait_to_start is None:
+                raise ValueError("already-blocked task transitions require a durable wait policy")
+            return WorkflowDecision(
+                decision_id=decision_id or f"{state.id}:{state.phase}:blocked-wait",
+                decided_at=decided_at,
+                from_phase=state.phase,
+                to_phase=next_phase,
+                material_progress=False,
+                progress_signal=ProgressSignal.WAIT_TIMER_STARTED,
+                wait_to_start=wait_to_start,
+                blocker_to_record=state.blocker,
+            )
         return WorkflowDecision(
             decision_id=decision_id or f"{state.id}:{state.phase}:blocked",
             decided_at=decided_at,
