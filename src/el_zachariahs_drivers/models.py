@@ -138,6 +138,12 @@ class ActivitySideEffect(StrEnum):
     USER_MESSAGE = "user_message"
 
 
+class ActivityStatus(StrEnum):
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    SKIPPED_DUPLICATE = "SKIPPED_DUPLICATE"
+
+
 class EvidenceType(StrEnum):
     PLAN = "plan"
     TASK = "task"
@@ -297,6 +303,39 @@ class ActivityRequest(BaseModel):
     timeout_policy: TimeoutPolicy
     retry_policy: RetryPolicy
     on_failure: ActivityFailurePolicy
+
+
+class ActivityResultEnvelope(BaseModel):
+    """Adapter-neutral result for one side-effecting activity attempt.
+
+    Activity implementations may use Hermes, GitHub, local commands, CI, or fake
+    test adapters. The durable workflow records this envelope rather than
+    adapter-private state so replay can distinguish successful effects, failed
+    attempts, and duplicate idempotency-key replays.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    activity_id: str
+    activity_type: str
+    idempotency_key: str
+    role: WorkflowRole
+    status: ActivityStatus
+    started_at: str
+    finished_at: str
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+    output: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+
+    @model_validator(mode="after")
+    def enforce_result_shape(self) -> ActivityResultEnvelope:
+        if self.status == ActivityStatus.FAILED and not self.error:
+            raise ValueError("failed activity results require error")
+        if self.status != ActivityStatus.FAILED and self.error is not None:
+            raise ValueError("only failed activity results may carry error")
+        if self.status == ActivityStatus.SKIPPED_DUPLICATE and self.evidence_refs:
+            raise ValueError("duplicate-skip results must not claim new evidence")
+        return self
 
 
 class WorkflowDecision(BaseModel):

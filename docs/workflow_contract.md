@@ -149,6 +149,26 @@ on_failure:
 
 Adapters may add transport metadata, but the core workflow should be able to decide whether an activity result is acceptable without reading adapter-private state.
 
+## Activity result envelope
+
+Every activity attempt returns an adapter-neutral envelope. This lets replay and local tests reason about effects without reading Hermes, GitHub, CI, shell, or chat-specific state.
+
+```yaml
+activity_id: string
+activity_type: string
+idempotency_key: string
+role: project_intake_owner | developer | reviewer | proof_runner | process_steward | human_approver
+status: SUCCEEDED | FAILED | SKIPPED_DUPLICATE
+started_at: timestamp
+finished_at: timestamp
+evidence_refs:
+  - EvidenceRef
+output: object
+error: optional string
+```
+
+A failed result must carry `error`. A successful result must not carry `error`, and local runners reject success envelopes that do not provide enough evidence references for the request's `required_evidence`. Duplicate idempotency-key runs are explicit `SKIPPED_DUPLICATE` envelopes; they do not invoke the handler again and do not claim new evidence.
+
 ## Wait policy contract
 
 A wait is controlled only if it records all of these fields:
