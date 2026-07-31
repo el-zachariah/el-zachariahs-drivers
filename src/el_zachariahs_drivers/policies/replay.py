@@ -24,6 +24,11 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
     persist the returned model and a replay can reproduce the same record from
     the same input state and decisions.
     """
+    if decision.from_phase != state.phase:
+        raise ValueError(
+            f"cannot apply decision from phase {decision.from_phase!r} to state in phase {state.phase!r}"
+        )
+
     next_state = state.model_copy(deep=True)
     next_state.phase = decision.to_phase
     next_state.current_activity = None
@@ -33,7 +38,7 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
         next_state.current_activity = CurrentActivity(
             activity_id=activity.activity_id,
             role=activity.role,
-            requested_at=decision.decision_id,
+            requested_at=decision.decided_at,
             deadline_at=None,
         )
 
@@ -50,13 +55,15 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
 
     next_state.evidence_refs.extend(decision.evidence_refs)
 
-    if decision.progress_signal:
+    if decision.material_progress and decision.progress_signal:
         next_state.progress_ledger = ProgressLedger(
-            last_material_progress_at=decision.decision_id,
+            last_material_progress_at=decision.decided_at,
             last_progress_signal=decision.progress_signal,
             no_op_observation_count=0,
         )
-    elif decision.from_phase == decision.to_phase:
+    elif decision.from_phase == decision.to_phase and not any(
+        (decision.wait_to_start, decision.blocker_to_record, decision.activities_to_schedule)
+    ):
         next_state.progress_ledger.no_op_observation_count += 1
 
     if decision.terminal_outcome:

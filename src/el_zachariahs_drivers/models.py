@@ -303,6 +303,7 @@ class WorkflowDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     decision_id: str
+    decided_at: str
     from_phase: str
     to_phase: str
     material_progress: bool = False
@@ -329,8 +330,13 @@ class WorkflowDecision(BaseModel):
             raise ValueError(
                 "same-phase decisions must record progress, activity, wait, blocker, evidence, or terminal outcome"
             )
-        if self.progress_signal and not self.material_progress:
-            raise ValueError("progress_signal requires material_progress=True")
+        controlled_wait_signals = {ProgressSignal.RETRY_SCHEDULED, ProgressSignal.WAIT_TIMER_STARTED}
+        if (
+            self.progress_signal
+            and not self.material_progress
+            and self.progress_signal not in controlled_wait_signals
+        ):
+            raise ValueError("material progress signals require material_progress=True")
         return self
 
 

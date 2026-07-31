@@ -114,6 +114,7 @@ def test_decision_cannot_carry_resume_target_outside_blocker():
     with pytest.raises(ValidationError):
         WorkflowDecision(
             decision_id="d-bad",
+            decided_at="2026-07-30T23:55:00Z",
             from_phase="TESTING",
             to_phase="BLOCKED_NEEDS_EL_LE",
             blocker_to_record=blocker(),
@@ -123,12 +124,18 @@ def test_decision_cannot_carry_resume_target_outside_blocker():
 
 def test_same_phase_decision_without_signal_or_wait_is_invalid():
     with pytest.raises(ValidationError):
-        WorkflowDecision(decision_id="d0", from_phase="PLANNING", to_phase="PLANNING")
+        WorkflowDecision(
+            decision_id="d0",
+            decided_at="2026-07-30T23:55:01Z",
+            from_phase="PLANNING",
+            to_phase="PLANNING",
+        )
 
 
 def test_apply_decision_records_progress_evidence_and_activity():
     decision = WorkflowDecision(
         decision_id="d1",
+        decided_at="2026-07-30T23:55:02Z",
         from_phase="PLANNING",
         to_phase="PLAN_REVIEW",
         material_progress=True,
@@ -140,7 +147,9 @@ def test_apply_decision_records_progress_evidence_and_activity():
     assert updated.phase == "PLAN_REVIEW"
     assert updated.current_activity is not None
     assert updated.current_activity.role == WorkflowRole.PROJECT_INTAKE_OWNER
+    assert updated.current_activity.requested_at == "2026-07-30T23:55:02Z"
     assert updated.progress_ledger.last_progress_signal == ProgressSignal.PLAN_CREATED
+    assert updated.progress_ledger.last_material_progress_at == "2026-07-30T23:55:02Z"
     assert evidence_digest(updated.evidence_refs) == (("commit", "git:abc123", "sha256:evidence"),)
 
 
@@ -155,6 +164,7 @@ def test_apply_decision_records_blocker_and_clears_wait():
     )
     decision = WorkflowDecision(
         decision_id="d2",
+        decided_at="2026-07-30T23:55:03Z",
         from_phase="PROOF_AUTH_WAIT",
         to_phase="BLOCKED_NEEDS_ZO_EL",
         blocker_to_record=blocker(),
@@ -163,6 +173,41 @@ def test_apply_decision_records_blocker_and_clears_wait():
     assert updated.blocker is not None
     assert updated.blocker.resume_target.resume_phase_if_unblocked == "PROOF_RUNNING"
     assert updated.wait is None
+
+
+def test_controlled_wait_signal_does_not_require_material_progress():
+    wait = WaitPolicy(
+        awaited_signal="review_completed",
+        started_at="2026-07-30T23:55:05Z",
+        threshold_at="2026-07-31T00:25:05Z",
+        retry_policy="single-reminder",
+        threshold_response=WaitThresholdResponse.BLOCKED_NEEDS_EL_LE,
+    )
+    decision = WorkflowDecision(
+        decision_id="d-wait",
+        decided_at="2026-07-30T23:55:05Z",
+        from_phase="REVIEW_WAIT",
+        to_phase="REVIEW_WAIT",
+        material_progress=False,
+        progress_signal=ProgressSignal.WAIT_TIMER_STARTED,
+        wait_to_start=wait,
+    )
+    updated = apply_decision(state("REVIEW_WAIT"), decision)
+    assert updated.wait == wait
+    assert updated.progress_ledger.last_material_progress_at is None
+    assert updated.progress_ledger.no_op_observation_count == 0
+
+
+def test_apply_decision_rejects_stale_from_phase():
+    decision = WorkflowDecision(
+        decision_id="d-stale",
+        decided_at="2026-07-30T23:55:06Z",
+        from_phase="TESTING",
+        to_phase="DONE",
+        terminal_outcome=TerminalOutcome.DONE,
+    )
+    with pytest.raises(ValueError, match="cannot apply decision from phase"):
+        apply_decision(state("PLANNING"), decision)
 
 
 def test_replay_events_is_deterministic():
@@ -180,6 +225,7 @@ def test_replay_events_is_deterministic():
     def decide(current: WorkflowStateRecord, event: WorkflowEvent) -> WorkflowDecision:
         return WorkflowDecision(
             decision_id=f"decision-for-{event.event_id}",
+            decided_at=event.emitted_at,
             from_phase=current.phase,
             to_phase="PLAN_REVIEW",
             material_progress=True,
@@ -196,6 +242,7 @@ def test_replay_events_is_deterministic():
 def test_terminal_decision_records_terminal_state():
     decision = WorkflowDecision(
         decision_id="d3",
+        decided_at="2026-07-30T23:55:04Z",
         from_phase="FINAL_REPORT",
         to_phase="DONE",
         terminal_outcome=TerminalOutcome.DONE,
