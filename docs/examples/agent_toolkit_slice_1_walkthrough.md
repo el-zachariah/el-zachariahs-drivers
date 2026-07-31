@@ -106,7 +106,8 @@ Each project task is smaller than the project. The task driver owns only one bou
 ```mermaid
 stateDiagram-v2
   [*] --> TASK_ASSIGNED
-  TASK_ASSIGNED --> INSPECTING: TASK_STARTED
+  TASK_ASSIGNED --> CLAIMED: TASK_STARTED
+  CLAIMED --> INSPECTING: TASK_STARTED
   INSPECTING --> IMPLEMENTING: scope understood
   IMPLEMENTING --> TESTING: changes made
   TESTING --> REVIEW_REQUESTED: tests pass
@@ -115,6 +116,9 @@ stateDiagram-v2
   REVIEW_WAIT --> FIXING_REVIEW: findings accepted
   FIXING_REVIEW --> IMPLEMENTING: loop count < max
   FIXING_REVIEW --> RESCOPE_REQUESTED: scope changed or loop limit hit
+  INSPECTING --> BLOCKED_NEEDS_EL_LE: process/developer ambiguity
+  IMPLEMENTING --> BLOCKED_NEEDS_EL_LE: process/developer ambiguity
+  REVIEW_WAIT --> BLOCKED_NEEDS_EL_LE: review wait threshold exceeded
   TESTING --> BLOCKED_NEEDS_EL_LE: process/developer ambiguity
   TESTING --> BLOCKED_NEEDS_ZO_EL: human authority/resource gate
   BLOCKED_NEEDS_EL_LE --> [*]: returns Blocker packet to project
@@ -123,13 +127,41 @@ stateDiagram-v2
   COMPLETE --> [*]
 ```
 
-A task blocker is not task success. It returns a canonical `Blocker` packet:
+A task blocker is not task success. It returns a canonical `Blocker` packet using task phases:
+
+```yaml
+blocker:
+  owner_role: process_steward
+  reason: review wait threshold exceeded
+  required_decision: diagnose reviewer availability or choose alternate reviewer
+  intake_outcome_preserved: true
+  evidence_refs:
+    - type: review
+      uri: state://review-request/agent-toolkit-slice-1/context-capsule-contract
+  resume_target:
+    blocked_phase: REVIEW_WAIT
+    resume_phase_if_unblocked: REVIEW_REQUESTED
+    resume_activity: request_review
+    decision_options:
+      - decision: reviewer_available
+        resulting_phase: REVIEW_WAIT
+        notes: continue waiting for existing reviewer response
+      - decision: alternate_reviewer
+        resulting_phase: REVIEW_REQUESTED
+        notes: request a fresh review from the configured alternate reviewer
+      - decision: scope_changed
+        resulting_phase: RESCOPE_REQUESTED
+        notes: return to project PLAN_RETHINK with evidence
+```
+
+A project-level proof gate uses the same canonical shape, but with project phases:
 
 ```yaml
 blocker:
   owner_role: human_approver
   reason: proof run requires authorization
   required_decision: approve proof, skip proof, or cancel release
+  intake_outcome_preserved: true
   evidence_refs:
     - type: report
       uri: state://proof-cost-estimate
