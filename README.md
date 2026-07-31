@@ -49,6 +49,7 @@ Start with:
 - [`docs/workflow_contract.md`](docs/workflow_contract.md) for the common implementation contract.
 - [`docs/workflows/software_project_driver.md`](docs/workflows/software_project_driver.md) for the outer lifecycle.
 - [`docs/workflows/software_task_driver.md`](docs/workflows/software_task_driver.md) for the bounded task lifecycle.
+- [`docs/examples/agent_toolkit_slice_1_walkthrough.md`](docs/examples/agent_toolkit_slice_1_walkthrough.md) for an end-to-end example walkthrough with diagrams.
 - [`docs/design_iterations.md`](docs/design_iterations.md) for accepted critique passes.
 
 ## Repository map
@@ -62,6 +63,8 @@ docs/
   workflows/
     software_project_driver.md            Outer durable project lifecycle.
     software_task_driver.md               Inner bounded task lifecycle.
+  examples/
+    agent_toolkit_slice_1_walkthrough.md  End-to-end project/task walkthrough with diagrams.
 src/el_zachariahs_drivers/
   cli.py                                  Local JSON store/replay/status CLI.
   models.py                               Shared typed state/events.
