@@ -89,6 +89,13 @@ def activity() -> ActivityRequest:
     )
 
 
+def activity_two() -> ActivityRequest:
+    second = activity().model_copy(deep=True)
+    second.activity_id = "act-2"
+    second.idempotency_key = "wf-1:write-plan-2"
+    return second
+
+
 def test_state_record_serializes_and_rehydrates():
     original = state()
     round_tripped = WorkflowStateRecord.model_validate_json(original.model_dump_json())
@@ -195,6 +202,46 @@ def test_controlled_wait_signal_does_not_require_material_progress():
     updated = apply_decision(state("REVIEW_WAIT"), decision)
     assert updated.wait == wait
     assert updated.progress_ledger.last_material_progress_at is None
+    assert updated.progress_ledger.no_op_observation_count == 0
+
+
+def test_controlled_wait_signal_requires_durable_wait_policy():
+    with pytest.raises(ValidationError, match="controlled wait signals require wait_to_start"):
+        WorkflowDecision(
+            decision_id="d-wait-missing-policy",
+            decided_at="2026-07-30T23:55:05Z",
+            from_phase="REVIEW_WAIT",
+            to_phase="REVIEW_WAIT",
+            material_progress=False,
+            progress_signal=ProgressSignal.WAIT_TIMER_STARTED,
+        )
+
+
+def test_decision_rejects_multiple_scheduled_activities_until_queue_exists():
+    with pytest.raises(ValidationError):
+        WorkflowDecision(
+            decision_id="d-multi-activity",
+            decided_at="2026-07-30T23:55:05Z",
+            from_phase="PLANNING",
+            to_phase="PLAN_REVIEW",
+            material_progress=True,
+            progress_signal=ProgressSignal.PLAN_CREATED,
+            activities_to_schedule=[activity(), activity_two()],
+        )
+
+
+def test_material_progress_without_signal_updates_progress_ledger_timestamp():
+    decision = WorkflowDecision(
+        decision_id="d-evidence-only-progress",
+        decided_at="2026-07-30T23:55:05Z",
+        from_phase="PLANNING",
+        to_phase="PLANNING",
+        material_progress=True,
+        evidence_refs=[evidence("plan:material-update")],
+    )
+    updated = apply_decision(state(), decision)
+    assert updated.progress_ledger.last_material_progress_at == "2026-07-30T23:55:05Z"
+    assert updated.progress_ledger.last_progress_signal is None
     assert updated.progress_ledger.no_op_observation_count == 0
 
 

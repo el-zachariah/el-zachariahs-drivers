@@ -66,7 +66,7 @@ wait: optional
   retry_policy: string
 blocker: optional Blocker
 evidence_refs:
-  - type: plan | task | commit | pull_request | review | command | proof | report | adapter_record
+  - type: plan | task | commit | pull_request | review | command | proof | report | adapter_record | profile
     uri: string
     digest: optional string
 progress_ledger:
@@ -100,6 +100,7 @@ event:
 
 decision:
   decision_id: string
+  decided_at: timestamp
   from_phase: string
   to_phase: string
   material_progress: boolean
@@ -113,7 +114,9 @@ decision:
   terminal_outcome: optional DONE | FAILED | CANCELLED
 ```
 
-A decision that repeats the same phase is valid only when it also records material progress, a controlled wait/retry, a blocker, or a terminal outcome.
+A decision that repeats the same phase is valid only when it also records material progress, a controlled wait/retry, a blocker, or a terminal outcome. `decided_at` is distinct from the opaque `decision_id`; replay uses it for durable timestamps such as `current_activity.requested_at` and `progress_ledger.last_material_progress_at`.
+
+Controlled wait/retry progress signals such as `WAIT_TIMER_STARTED` and `RETRY_SCHEDULED` are valid only when the decision also carries `wait_to_start`. A signal without a durable `WaitPolicy` is not a controlled wait; it is stalled or invalid. The current v1 state record has a single `current_activity`, so decisions may schedule at most one activity until the contract grows a durable activity queue.
 
 ## Activity request contract
 

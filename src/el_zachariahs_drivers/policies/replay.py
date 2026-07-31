@@ -33,6 +33,9 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
     next_state.phase = decision.to_phase
     next_state.current_activity = None
 
+    if len(decision.activities_to_schedule) > 1:
+        raise ValueError("workflow state supports only one current activity per decision")
+
     if decision.activities_to_schedule:
         activity = decision.activities_to_schedule[0]
         next_state.current_activity = CurrentActivity(
@@ -55,7 +58,7 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
 
     next_state.evidence_refs.extend(decision.evidence_refs)
 
-    if decision.material_progress and decision.progress_signal:
+    if decision.material_progress:
         next_state.progress_ledger = ProgressLedger(
             last_material_progress_at=decision.decided_at,
             last_progress_signal=decision.progress_signal,

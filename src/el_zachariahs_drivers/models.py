@@ -308,7 +308,7 @@ class WorkflowDecision(BaseModel):
     to_phase: str
     material_progress: bool = False
     progress_signal: ProgressSignal | None = None
-    activities_to_schedule: list[ActivityRequest] = Field(default_factory=list)
+    activities_to_schedule: list[ActivityRequest] = Field(default_factory=list, max_length=1)
     wait_to_start: WaitPolicy | None = None
     blocker_to_record: Blocker | None = None
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)
@@ -331,6 +331,8 @@ class WorkflowDecision(BaseModel):
                 "same-phase decisions must record progress, activity, wait, blocker, evidence, or terminal outcome"
             )
         controlled_wait_signals = {ProgressSignal.RETRY_SCHEDULED, ProgressSignal.WAIT_TIMER_STARTED}
+        if self.progress_signal in controlled_wait_signals and self.wait_to_start is None:
+            raise ValueError("controlled wait signals require wait_to_start")
         if (
             self.progress_signal
             and not self.material_progress
