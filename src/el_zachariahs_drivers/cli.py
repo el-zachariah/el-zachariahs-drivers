@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
 from pathlib import Path
+from typing import Sequence
 
 from pydantic import BaseModel
 
-from el_zachariahs_drivers.local_agents import generate_dashboard
 from el_zachariahs_drivers.models import WorkflowDecision, WorkflowEvent, WorkflowStateRecord
 from el_zachariahs_drivers.state_store import JsonWorkflowStore
 
@@ -39,38 +38,12 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser = subparsers.add_parser("status", help="print phase, next trigger, blocker, evidence")
     status_parser.add_argument("store", type=Path)
 
-    local_agents_parser = subparsers.add_parser(
-        "local-agents-ui", help="generate a static UI for local Hermes profiles and cron jobs"
-    )
-    local_agents_parser.add_argument(
-        "--profiles-root",
-        type=Path,
-        default=Path.home() / ".hermes" / "profiles",
-        help="directory containing Hermes profile directories",
-    )
-    local_agents_parser.add_argument(
-        "--out",
-        required=True,
-        type=Path,
-        help="output directory for index.html, data.json, and agent detail pages",
-    )
-
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-
-    if args.command == "local-agents-ui":
-        dashboard = generate_dashboard(args.profiles_root, args.out)
-        print(
-            f"Generated local agents UI at {args.out} "
-            f"for {len(dashboard.agents)} agents, {dashboard.total_jobs} jobs "
-            f"({dashboard.enabled_jobs} enabled)."
-        )
-        return 0
-
     store = JsonWorkflowStore(args.store)
 
     if args.command == "init":
