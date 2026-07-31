@@ -229,6 +229,19 @@ repair_recommendations:
 
 The project driver then decides whether to continue task execution, enter `PLAN_RETHINK`, record a blocker, fail, cancel, or report completion.
 
+## Template phase policy
+
+The engine invariants above are generic. Each software-delivery template also needs a phase policy that names which outcomes are legal from each phase:
+
+- material progress signals allowed from that phase;
+- controlled wait/retry signals allowed from that phase;
+- blocker owner roles allowed from that phase;
+- terminal outcomes allowed from that phase.
+
+A template phase policy is adapter-neutral: it can say that `REVIEW_WAIT` may wait for `review_completed` and escalate to `reviewer` or `process_steward`, but it must not know whether the review arrives through GitHub, Hermes, Discord, Kanban, or a local test adapter.
+
+No-op observations are not template progress. A decision marked `material_progress=True` must carry a durable progress signal, scheduled activity, blocker, evidence reference, or terminal outcome. Evidence-only progress may be valid at the engine contract level, but a software template policy can still classify it as `STALLED` when it has no phase-allowed signal, wait, blocker, or terminal outcome.
+
 ## Adapter-neutrality test
 
 A workflow change is adapter-neutral if the answer to each question is yes:

@@ -348,6 +348,18 @@ class WorkflowDecision(BaseModel):
             and self.progress_signal not in controlled_wait_signals
         ):
             raise ValueError("material progress signals require material_progress=True")
+        if self.material_progress and not any(
+            (
+                self.progress_signal,
+                self.activities_to_schedule,
+                self.blocker_to_record,
+                self.evidence_refs,
+                self.terminal_outcome,
+            )
+        ):
+            raise ValueError(
+                "material progress decisions require a progress signal, activity, blocker, evidence, or terminal outcome"
+            )
         if self.terminal_outcome and any(
             (self.activities_to_schedule, self.wait_to_start, self.blocker_to_record)
         ):
