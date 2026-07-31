@@ -316,6 +316,13 @@ class WorkflowDecision(BaseModel):
 
     @model_validator(mode="after")
     def enforce_run_invariant(self) -> WorkflowDecision:
+        blocked_signals = {ProgressSignal.BLOCKER_CREATED, ProgressSignal.BLOCKER_ESCALATED}
+        blocked_phase_prefix = "BLOCKED_NEEDS_"
+        terminal_phases_by_outcome = {
+            TerminalOutcome.DONE: {"DONE", "COMPLETE"},
+            TerminalOutcome.FAILED: {"FAILED"},
+            TerminalOutcome.CANCELLED: {"CANCELLED"},
+        }
         if self.from_phase == self.to_phase and not any(
             (
                 self.material_progress,
@@ -347,6 +354,17 @@ class WorkflowDecision(BaseModel):
             raise ValueError(
                 "terminal decisions cannot schedule activities, start waits, or record blockers"
             )
+        if self.terminal_outcome:
+            terminal_phases = terminal_phases_by_outcome[self.terminal_outcome]
+            if self.to_phase not in terminal_phases:
+                raise ValueError(
+                    "terminal decisions must transition to a terminal phase matching terminal_outcome"
+                )
+        if (
+            self.to_phase.startswith(blocked_phase_prefix)
+            or self.progress_signal in blocked_signals
+        ) and self.blocker_to_record is None:
+            raise ValueError("blocked decisions require blocker_to_record")
         return self
 
 

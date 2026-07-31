@@ -361,3 +361,61 @@ def test_terminal_decision_cannot_leave_scheduled_activity_or_wait():
             progress_signal=ProgressSignal.WAIT_TIMER_STARTED,
             wait_to_start=wait,
         )
+
+
+def test_terminal_decision_must_transition_to_terminal_phase():
+    with pytest.raises(
+        ValidationError,
+        match="terminal decisions must transition to a terminal phase matching terminal_outcome",
+    ):
+        WorkflowDecision(
+            decision_id="d-terminal-active-phase",
+            decided_at="2026-07-30T23:55:08Z",
+            from_phase="PLANNING",
+            to_phase="PLANNING",
+            terminal_outcome=TerminalOutcome.DONE,
+        )
+
+
+def test_blocked_phase_requires_durable_blocker_record():
+    with pytest.raises(ValidationError, match="blocked decisions require blocker_to_record"):
+        WorkflowDecision(
+            decision_id="d-blocked-without-record",
+            decided_at="2026-07-30T23:55:08Z",
+            from_phase="PROOF_AUTH_WAIT",
+            to_phase="BLOCKED_NEEDS_ZO_EL",
+            material_progress=True,
+            progress_signal=ProgressSignal.BLOCKER_CREATED,
+        )
+
+
+def test_resume_from_blocked_phase_clears_stale_blocker():
+    initial = state("BLOCKED_NEEDS_ZO_EL")
+    initial.blocker = blocker()
+    decision = WorkflowDecision(
+        decision_id="d-resume-blocked",
+        decided_at="2026-07-30T23:55:08Z",
+        from_phase="BLOCKED_NEEDS_ZO_EL",
+        to_phase="PROOF_RUNNING",
+        material_progress=True,
+        progress_signal=ProgressSignal.PROOF_STARTED,
+    )
+    updated = apply_decision(initial, decision)
+    assert updated.phase == "PROOF_RUNNING"
+    assert updated.blocker is None
+
+
+def test_terminal_decision_from_blocked_phase_clears_stale_blocker():
+    initial = state("BLOCKED_NEEDS_ZO_EL")
+    initial.blocker = blocker()
+    decision = WorkflowDecision(
+        decision_id="d-cancel-blocked",
+        decided_at="2026-07-30T23:55:09Z",
+        from_phase="BLOCKED_NEEDS_ZO_EL",
+        to_phase="CANCELLED",
+        terminal_outcome=TerminalOutcome.CANCELLED,
+    )
+    updated = apply_decision(initial, decision)
+    assert updated.terminal is not None
+    assert updated.terminal.outcome == TerminalOutcome.CANCELLED
+    assert updated.blocker is None

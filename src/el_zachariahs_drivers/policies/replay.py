@@ -28,6 +28,8 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
         raise ValueError(
             f"cannot apply decision from phase {decision.from_phase!r} to state in phase {state.phase!r}"
         )
+    if decision.to_phase.startswith("BLOCKED_NEEDS_") and decision.blocker_to_record is None:
+        raise ValueError("blocked phases require a durable blocker record")
 
     next_state = state.model_copy(deep=True)
     next_state.phase = decision.to_phase
@@ -53,7 +55,11 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
     if decision.blocker_to_record:
         next_state.blocker = decision.blocker_to_record
         next_state.wait = None
-    elif decision.progress_signal == ProgressSignal.BLOCKER_RESOLVED:
+    elif (
+        decision.progress_signal == ProgressSignal.BLOCKER_RESOLVED
+        or decision.terminal_outcome
+        or (state.phase.startswith("BLOCKED_NEEDS_") and not decision.to_phase.startswith("BLOCKED_NEEDS_"))
+    ):
         next_state.blocker = None
 
     next_state.evidence_refs.extend(decision.evidence_refs)
