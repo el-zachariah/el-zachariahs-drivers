@@ -333,12 +333,20 @@ class WorkflowDecision(BaseModel):
         controlled_wait_signals = {ProgressSignal.RETRY_SCHEDULED, ProgressSignal.WAIT_TIMER_STARTED}
         if self.progress_signal in controlled_wait_signals and self.wait_to_start is None:
             raise ValueError("controlled wait signals require wait_to_start")
+        if self.progress_signal in controlled_wait_signals and self.material_progress:
+            raise ValueError("controlled wait signals cannot be material progress")
         if (
             self.progress_signal
             and not self.material_progress
             and self.progress_signal not in controlled_wait_signals
         ):
             raise ValueError("material progress signals require material_progress=True")
+        if self.terminal_outcome and any(
+            (self.activities_to_schedule, self.wait_to_start, self.blocker_to_record)
+        ):
+            raise ValueError(
+                "terminal decisions cannot schedule activities, start waits, or record blockers"
+            )
         return self
 
 

@@ -217,6 +217,26 @@ def test_controlled_wait_signal_requires_durable_wait_policy():
         )
 
 
+def test_controlled_wait_signal_cannot_be_material_progress():
+    wait = WaitPolicy(
+        awaited_signal="review_completed",
+        started_at="2026-07-30T23:55:05Z",
+        threshold_at="2026-07-31T00:25:05Z",
+        retry_policy="single-reminder",
+        threshold_response=WaitThresholdResponse.BLOCKED_NEEDS_EL_LE,
+    )
+    with pytest.raises(ValidationError, match="controlled wait signals cannot be material progress"):
+        WorkflowDecision(
+            decision_id="d-wait-material-progress",
+            decided_at="2026-07-30T23:55:05Z",
+            from_phase="REVIEW_WAIT",
+            to_phase="REVIEW_WAIT",
+            material_progress=True,
+            progress_signal=ProgressSignal.WAIT_TIMER_STARTED,
+            wait_to_start=wait,
+        )
+
+
 def test_decision_rejects_multiple_scheduled_activities_until_queue_exists():
     with pytest.raises(ValidationError):
         WorkflowDecision(
@@ -297,3 +317,47 @@ def test_terminal_decision_records_terminal_state():
     updated = apply_decision(state("FINAL_REPORT"), decision)
     assert updated.terminal is not None
     assert updated.terminal.outcome == TerminalOutcome.DONE
+
+
+def test_terminal_decision_cannot_record_live_blocker():
+    with pytest.raises(
+        ValidationError,
+        match="terminal decisions cannot schedule activities, start waits, or record blockers",
+    ):
+        WorkflowDecision(
+            decision_id="d-terminal-blocked",
+            decided_at="2026-07-30T23:55:07Z",
+            from_phase="FINAL_REPORT",
+            to_phase="DONE",
+            terminal_outcome=TerminalOutcome.DONE,
+            blocker_to_record=blocker(),
+        )
+
+
+def test_terminal_decision_cannot_leave_scheduled_activity_or_wait():
+    wait = WaitPolicy(
+        awaited_signal="final_report_delivered",
+        started_at="2026-07-30T23:55:07Z",
+        threshold_at="2026-07-31T00:25:07Z",
+        retry_policy="single-reminder",
+        threshold_response=WaitThresholdResponse.FAILED,
+    )
+    with pytest.raises(ValidationError):
+        WorkflowDecision(
+            decision_id="d-terminal-activity",
+            decided_at="2026-07-30T23:55:07Z",
+            from_phase="FINAL_REPORT",
+            to_phase="DONE",
+            terminal_outcome=TerminalOutcome.DONE,
+            activities_to_schedule=[activity()],
+        )
+    with pytest.raises(ValidationError):
+        WorkflowDecision(
+            decision_id="d-terminal-wait",
+            decided_at="2026-07-30T23:55:07Z",
+            from_phase="FINAL_REPORT",
+            to_phase="DONE",
+            terminal_outcome=TerminalOutcome.DONE,
+            progress_signal=ProgressSignal.WAIT_TIMER_STARTED,
+            wait_to_start=wait,
+        )
