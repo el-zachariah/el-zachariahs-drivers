@@ -7,11 +7,14 @@ import pytest
 
 from el_zachariahs_drivers.cli import main
 from el_zachariahs_drivers.models import (
+    Blocker,
     DriverInput,
     DriverKind,
     EvidenceRef,
     EvidenceType,
     ProgressSignal,
+    ResumeDecisionOption,
+    ResumeTarget,
     WorkflowDecision,
     WorkflowRole,
     WorkflowStateRecord,
@@ -70,6 +73,39 @@ def test_store_status_names_phase_next_trigger_blocker_and_evidence(tmp_path: Pa
     assert status.next_trigger == "event"
     assert status.blocker is None
     assert status.evidence_uris == ["file://plan.md"]
+
+
+def test_store_status_includes_blocker_local_evidence(tmp_path: Path):
+    store = JsonWorkflowStore(tmp_path)
+    store.initialize(
+        state(phase="BLOCKED_NEEDS_ZO_EL").model_copy(
+            update={
+                "blocker": Blocker(
+                    reason="Proof service needs human authorization",
+                    category="human_authority",
+                    owner_role=WorkflowRole.HUMAN_APPROVER,
+                    required_decision="Authorize proof run",
+                    resume_target=ResumeTarget(
+                        blocked_phase="PROOF_AUTH_WAIT",
+                        resume_phase_if_unblocked="PROOF_RUNNING",
+                        decision_options=[
+                            ResumeDecisionOption(
+                                decision="authorize",
+                                resulting_phase="PROOF_RUNNING",
+                                notes="Continue proof run after approval",
+                            )
+                        ],
+                    ),
+                    evidence_refs=[EvidenceRef(type=EvidenceType.PROOF, uri="file://proof.log")],
+                ),
+            }
+        )
+    )
+
+    status = store.status()
+
+    assert status.next_trigger == "blocker:human_approver:Authorize proof run"
+    assert status.evidence_uris == ["file://proof.log"]
 
 
 def test_cli_init_append_replay_and_status(tmp_path: Path, capsys: pytest.CaptureFixture[str]):

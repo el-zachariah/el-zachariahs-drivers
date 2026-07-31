@@ -109,7 +109,7 @@ class JsonWorkflowStore:
             phase=state.phase,
             next_trigger=self._next_trigger(state),
             blocker=self._blocker_summary(state.blocker),
-            evidence_uris=[ref.uri for ref in state.evidence_refs],
+            evidence_uris=self._status_evidence_uris(state),
             terminal=state.terminal.outcome.value if state.terminal else None,
         )
 
@@ -139,6 +139,22 @@ class JsonWorkflowStore:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid JSONL at {path}:{line_number}: {exc.msg}") from exc
         return records
+
+    @staticmethod
+    def _status_evidence_uris(state: WorkflowStateRecord) -> list[str]:
+        """Return durable evidence URIs surfaced by the operational status view."""
+        refs = [*state.evidence_refs]
+        if state.blocker:
+            refs.extend(state.blocker.evidence_refs)
+
+        uris: list[str] = []
+        seen: set[str] = set()
+        for ref in refs:
+            if ref.uri in seen:
+                continue
+            seen.add(ref.uri)
+            uris.append(ref.uri)
+        return uris
 
     @staticmethod
     def _next_trigger(state: WorkflowStateRecord) -> str:
