@@ -282,6 +282,7 @@ def validate_decision_against_phase_policy(
     built. This function enforces template-specific allowed signals, durable wait
     semantics, blocker owner routes, and terminal outcomes.
     """
+    driver_policies = TEMPLATE_PHASE_POLICIES[driver_kind]
     policy = phase_policy_for(driver_kind, decision.from_phase)
 
     blocker_signals = {ProgressSignal.BLOCKER_CREATED, ProgressSignal.BLOCKER_ESCALATED}
@@ -321,6 +322,24 @@ def validate_decision_against_phase_policy(
         if decision.to_phase != expected_blocked_phase:
             raise ValueError(
                 f"blocker owner {owner_role} must route to {expected_blocked_phase}, not {decision.to_phase}"
+            )
+        resume_target = decision.blocker_to_record.resume_target
+        is_new_blocker_route = decision.progress_signal in blocker_signals or str(decision.to_phase).startswith(
+            "BLOCKED_NEEDS_"
+        )
+        if is_new_blocker_route and resume_target.blocked_phase != decision.from_phase:
+            raise ValueError(
+                "new blockers must record the source phase as resume_target.blocked_phase"
+            )
+        known_resume_targets = set(driver_policies) | {outcome.value for outcome in TerminalOutcome}
+        resume_phases = {resume_target.resume_phase_if_unblocked} | {
+            option.resulting_phase for option in resume_target.decision_options
+        }
+        unknown_resume_phases = resume_phases - known_resume_targets
+        if unknown_resume_phases:
+            names = ", ".join(sorted(unknown_resume_phases))
+            raise ValueError(
+                f"resume target phase(s) not valid for {driver_kind}: {names}"
             )
 
     if decision.terminal_outcome and decision.terminal_outcome not in policy.terminal_outcomes:

@@ -35,19 +35,24 @@ def wait_policy(threshold_response: WaitThresholdResponse = WaitThresholdRespons
     )
 
 
-def blocker(owner_role: WorkflowRole = WorkflowRole.PROCESS_STEWARD) -> Blocker:
+def blocker(
+    owner_role: WorkflowRole = WorkflowRole.PROCESS_STEWARD,
+    *,
+    blocked_phase: str = "REVIEW_WAIT",
+    resume_phase: str = "REVIEW_REQUESTED",
+) -> Blocker:
     return Blocker(
         reason="review is stuck",
         category="process" if owner_role != WorkflowRole.HUMAN_APPROVER else "human_authority",
         owner_role=owner_role,
         required_decision="resume or escalate",
         resume_target=ResumeTarget(
-            blocked_phase="REVIEW_WAIT",
-            resume_phase_if_unblocked="REVIEW_REQUESTED",
+            blocked_phase=blocked_phase,
+            resume_phase_if_unblocked=resume_phase,
             decision_options=[
                 ResumeDecisionOption(
                     decision="resume",
-                    resulting_phase="REVIEW_REQUESTED",
+                    resulting_phase=resume_phase,
                     notes="request review again",
                 )
             ],
@@ -159,7 +164,11 @@ def test_validate_decision_rejects_blocker_owner_not_allowed_for_phase():
         to_phase=ProjectIntakePhase.BLOCKED_NEEDS_EL_LE,
         material_progress=True,
         progress_signal=ProgressSignal.BLOCKER_CREATED,
-        blocker_to_record=blocker(WorkflowRole.PROCESS_STEWARD),
+        blocker_to_record=blocker(
+            WorkflowRole.PROCESS_STEWARD,
+            blocked_phase=ProjectIntakePhase.FEEDBACK_WAIT,
+            resume_phase=ProjectIntakePhase.FEEDBACK_WAIT,
+        ),
     )
 
     with pytest.raises(ValueError, match="blocker owner"):
@@ -224,11 +233,62 @@ def test_validate_decision_rejects_human_blocker_routed_to_process_blocked_phase
         to_phase=ProjectIntakePhase.BLOCKED_NEEDS_EL_LE,
         material_progress=True,
         progress_signal=ProgressSignal.BLOCKER_CREATED,
-        blocker_to_record=blocker(WorkflowRole.HUMAN_APPROVER),
+        blocker_to_record=blocker(
+            WorkflowRole.HUMAN_APPROVER,
+            blocked_phase=ProjectIntakePhase.PLANNING,
+            resume_phase=ProjectIntakePhase.PLANNING,
+        ),
     )
 
     with pytest.raises(ValueError, match="must route to BLOCKED_NEEDS_ZO_EL"):
         validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, decision)
+
+
+@pytest.mark.parametrize("progress_signal", [ProgressSignal.BLOCKER_CREATED, None])
+def test_validate_decision_rejects_task_blocker_with_project_resume_phases(
+    progress_signal: ProgressSignal | None,
+):
+    proof_auth_blocker = blocker(
+        WorkflowRole.HUMAN_APPROVER,
+        blocked_phase=ProjectIntakePhase.PROOF_AUTH_WAIT,
+        resume_phase=TaskPhase.TESTING,
+    )
+    decision = WorkflowDecision(
+        decision_id=f"d-task-project-phase-blocker-{progress_signal or 'implicit'}",
+        decided_at="2026-07-31T17:55:00Z",
+        from_phase=TaskPhase.TESTING,
+        to_phase=TaskPhase.BLOCKED_NEEDS_ZO_EL,
+        material_progress=True,
+        progress_signal=progress_signal,
+        blocker_to_record=proof_auth_blocker,
+    )
+
+    with pytest.raises(ValueError, match="source phase as resume_target.blocked_phase"):
+        validate_decision_against_phase_policy(DriverKind.SOFTWARE_TASK, decision)
+
+
+def test_validate_decision_accepts_task_blockers_from_non_testing_phases():
+    for phase, resume in [
+        (TaskPhase.INSPECTING, TaskPhase.INSPECTING),
+        (TaskPhase.IMPLEMENTING, TaskPhase.IMPLEMENTING),
+        (TaskPhase.REVIEW_WAIT, TaskPhase.REVIEW_REQUESTED),
+    ]:
+        task_blocker = blocker(
+            WorkflowRole.PROCESS_STEWARD,
+            blocked_phase=phase,
+            resume_phase=resume,
+        )
+        decision = WorkflowDecision(
+            decision_id=f"d-task-blocker-{phase}",
+            decided_at="2026-07-31T17:56:00Z",
+            from_phase=phase,
+            to_phase=TaskPhase.BLOCKED_NEEDS_EL_LE,
+            material_progress=True,
+            progress_signal=ProgressSignal.BLOCKER_CREATED,
+            blocker_to_record=task_blocker,
+        )
+
+        assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_TASK, decision) == decision
 
 
 def test_workflow_decision_rejects_material_progress_without_signal_or_evidence_or_effect():
