@@ -28,6 +28,12 @@ def test_discover_local_agents_lists_profiles_jobs_outputs_and_custom_views(tmp_
                         "last_run_at": "2026-07-31T16:12:17-05:00",
                         "next_run_at": "2026-07-31T16:20:41-05:00",
                         "created_at": "2026-07-31T14:50:10-05:00",
+                        "state": "scheduled",
+                        "last_status": "ok",
+                        "repeat": {"times": 240, "completed": 13},
+                        "workdir": "/repo/el-zachariahs-drivers",
+                        "enabled_toolsets": ["terminal", "file", "cronjob"],
+                        "prompt": "Run the durable local agents UI loop with review gates.",
                     },
                     {
                         "id": "disabled",
@@ -55,6 +61,10 @@ def test_discover_local_agents_lists_profiles_jobs_outputs_and_custom_views(tmp_
     assert zach.jobs[0].latest_output is not None
     assert zach.jobs[0].latest_output.preview == "# Local agents UI progress\nGenerated board slice."
     assert zach.jobs[0].custom_view.kind == "local-agents-ui-driver"
+    assert zach.jobs[0].repeat == "13 / 240"
+    assert zach.jobs[0].toolsets == ["terminal", "file", "cronjob"]
+    assert zach.jobs[0].prompt_preview == "Run the durable local agents UI loop with review gates."
+    assert zach.jobs[0].custom_view.fields["workdir"] == "/repo/el-zachariahs-drivers"
     assert zach.jobs[1].status == "disabled"
     assert zach.jobs[1].custom_view.kind == "default"
 
@@ -90,6 +100,35 @@ def test_overdue_enabled_job_is_flagged(tmp_path: Path) -> None:
     assert job.schedule == "every 5m"
 
 
+def test_job_error_metadata_gets_attention_status(tmp_path: Path) -> None:
+    profiles = tmp_path / "profiles"
+    cron = profiles / "agent" / "cron"
+    cron.mkdir(parents=True)
+    (cron / "jobs.json").write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {
+                        "id": "broken",
+                        "name": "daily growth loop",
+                        "enabled": True,
+                        "last_status": "failed",
+                        "last_error": "Traceback: mailbox token expired and needs operator action",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dashboard = discover_local_agents(profiles)
+
+    job = dashboard.agents[0].jobs[0]
+    assert job.status == "error"
+    assert "token expired" in job.status_detail
+    assert job.custom_view.kind == "maintenance-growth"
+
+
 def test_render_dashboard_writes_index_data_and_agent_detail(tmp_path: Path) -> None:
     profiles = tmp_path / "profiles"
     cron = profiles / "agent-one" / "cron"
@@ -109,6 +148,8 @@ def test_render_dashboard_writes_index_data_and_agent_detail(tmp_path: Path) -> 
     assert "Local agents board" in (out / "index.html").read_text(encoding="utf-8")
     detail = (out / "agents" / "agent-one.html").read_text(encoding="utf-8")
     assert "Inbox monitor" in detail
+    assert "Prompt preview" in detail
+    assert "Last status" in detail
     data = json.loads((out / "data.json").read_text(encoding="utf-8"))
     assert data["total_jobs"] == 1
     assert data["agents"][0]["jobs"][0]["custom_view"]["kind"] == "inbox-monitor"

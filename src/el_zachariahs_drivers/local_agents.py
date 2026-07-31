@@ -42,6 +42,13 @@ class LocalJob:
     last_run_at: str | None
     next_run_at: str | None
     created_at: str | None
+    state: str | None
+    last_status: str | None
+    last_error: str | None
+    repeat: str | None
+    workdir: str | None
+    toolsets: list[str]
+    prompt_preview: str | None
     status: str
     status_detail: str
     latest_output: JobOutput | None
@@ -162,9 +169,27 @@ def _job_from_record(profile_dir: Path, record: dict[str, Any], index: int, now:
     enabled_bool = enabled if isinstance(enabled, bool) else None
     last_run_at = _string_or_none(record.get("last_run_at"))
     next_run_at = _string_or_none(record.get("next_run_at"))
-    status, detail = _job_status(enabled_bool, next_run_at, now)
+    state = _string_or_none(record.get("state"))
+    last_status = _string_or_none(record.get("last_status"))
+    last_error = _string_or_none(record.get("last_error") or record.get("last_delivery_error"))
+    repeat = _repeat_display(record.get("repeat"))
+    workdir = _string_or_none(record.get("workdir"))
+    toolsets = _string_list(record.get("enabled_toolsets"))
+    prompt_preview = _preview_text(record.get("prompt"), 280)
+    status, detail = _job_status(enabled_bool, state, last_status, last_error, next_run_at, now)
     latest_output = _latest_output(profile_dir, job_id)
-    custom_view = _custom_view_for_job(name, job_id, schedule_display, enabled_bool, latest_output)
+    custom_view = _custom_view_for_job(
+        name,
+        job_id,
+        schedule_display,
+        enabled_bool,
+        latest_output,
+        state=state,
+        last_status=last_status,
+        repeat=repeat,
+        workdir=workdir,
+        toolsets=toolsets,
+    )
     return LocalJob(
         id=job_id,
         name=name,
@@ -174,6 +199,13 @@ def _job_from_record(profile_dir: Path, record: dict[str, Any], index: int, now:
         last_run_at=last_run_at,
         next_run_at=next_run_at,
         created_at=_string_or_none(record.get("created_at")),
+        state=state,
+        last_status=last_status,
+        last_error=last_error,
+        repeat=repeat,
+        workdir=workdir,
+        toolsets=toolsets,
+        prompt_preview=prompt_preview,
         status=status,
         status_detail=detail,
         latest_output=latest_output,
@@ -193,9 +225,21 @@ def _schedule_display(schedule: Any) -> str:
     return "unscheduled/unknown"
 
 
-def _job_status(enabled: bool | None, next_run_at: str | None, now: datetime) -> tuple[str, str]:
+def _job_status(
+    enabled: bool | None,
+    state: str | None,
+    last_status: str | None,
+    last_error: str | None,
+    next_run_at: str | None,
+    now: datetime,
+) -> tuple[str, str]:
+    if last_error:
+        return "error", f"Last error: {_preview_text(last_error, 160) or last_error}"
+    if last_status and last_status.lower() not in {"ok", "success", "completed"}:
+        return "attention", f"Last status: {last_status}"
     if enabled is False:
-        return "disabled", "Job is present but disabled."
+        detail = f"Job is present but {state}." if state else "Job is present but disabled."
+        return "disabled", detail
     if enabled is None:
         return "unknown", "Job metadata does not declare enabled state."
     if next_run_at:
@@ -220,11 +264,30 @@ def _latest_output(profile_dir: Path, job_id: str) -> JobOutput | None:
 
 
 def _custom_view_for_job(
-    name: str, job_id: str, schedule: str, enabled: bool | None, output: JobOutput | None
+    name: str,
+    job_id: str,
+    schedule: str,
+    enabled: bool | None,
+    output: JobOutput | None,
+    *,
+    state: str | None,
+    last_status: str | None,
+    repeat: str | None,
+    workdir: str | None,
+    toolsets: list[str],
 ) -> JobCustomView:
     lower = name.lower()
     words = set(re.findall(r"[a-z0-9]+", lower))
-    base_fields = {"job_id": job_id, "schedule": schedule, "enabled": str(enabled)}
+    base_fields = {
+        "job_id": job_id,
+        "schedule": schedule,
+        "enabled": str(enabled),
+        "state": state or "not recorded",
+        "last_status": last_status or "not recorded",
+        "repeat": repeat or "not configured",
+        "workdir": workdir or "not configured",
+        "toolsets": ", ".join(toolsets) if toolsets else "not recorded",
+    }
     if "github" in words or "review" in words or "pr" in words:
         return JobCustomView(
             kind="github-review-monitor",
@@ -335,6 +398,13 @@ def _render_agent(agent: LocalAgent, dashboard: LocalAgentsDashboard) -> str:
               <h2>{_e(job.name)}</h2>
               <p><strong>Status:</strong> {_e(job.status)} — {_e(job.status_detail)}</p>
               <p><strong>Schedule:</strong> {_e(job.schedule)} ({_e(job.schedule_kind)})</p>
+              <p><strong>State:</strong> {_e(job.state or 'not recorded')}<br>
+                 <strong>Last status:</strong> {_e(job.last_status or 'not recorded')}<br>
+                 <strong>Last error:</strong> {_e(job.last_error or 'none')}<br>
+                 <strong>Repeat:</strong> {_e(job.repeat or 'not configured')}</p>
+              <p><strong>Workdir:</strong> <code>{_e(job.workdir or 'not configured')}</code><br>
+                 <strong>Toolsets:</strong> {_e(', '.join(job.toolsets) if job.toolsets else 'not recorded')}</p>
+              <p><strong>Prompt preview:</strong> {_e(job.prompt_preview or 'not recorded')}</p>
               <p><strong>Last run:</strong> {_e(job.last_run_at or 'not recorded')}<br>
                  <strong>Next run:</strong> {_e(job.next_run_at or 'not recorded')}<br>
                  <strong>Created:</strong> {_e(job.created_at or 'not recorded')}</p>
@@ -384,6 +454,7 @@ th, td {{ border: 1px solid #d8deea; padding: .55rem; text-align: left; vertical
 .job.scheduled, .job.enabled {{ border-left-color: #16a34a; }}
 .job.disabled {{ border-left-color: #64748b; opacity: .86; }}
 .job.overdue {{ border-left-color: #dc2626; }}
+.job.error, .job.attention {{ border-left-color: #f97316; }}
 pre {{ white-space: pre-wrap; background: #0f172a; color: #e2e8f0; padding: .75rem; border-radius: .4rem; max-height: 14rem; overflow: auto; }}
 code {{ word-break: break-word; }}
 </style>
@@ -423,6 +494,31 @@ def _parse_dt(value: str) -> datetime | None:
 
 def _string_or_none(value: Any) -> str | None:
     return None if value is None else str(value)
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+def _repeat_display(value: Any) -> str | None:
+    if not isinstance(value, dict):
+        return None
+    times = value.get("times")
+    completed = value.get("completed")
+    if times is None and completed is None:
+        return None
+    return f"{completed if completed is not None else '?'} / {times if times is not None else '?'}"
+
+
+def _preview_text(value: Any, limit: int) -> str | None:
+    if value is None:
+        return None
+    collapsed = " ".join(str(value).split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return f"{collapsed[: limit - 1]}…"
 
 
 def _slug(value: str) -> str:
