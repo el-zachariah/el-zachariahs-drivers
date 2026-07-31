@@ -86,6 +86,31 @@ tests/
   test_policies.py                        Pure deterministic policy tests.
 ```
 
+## Local agents UI
+
+This repo also contains a controlled local dashboard generator for Hermes profiles and cron/jobs. It intentionally reads local state and emits static artifacts instead of changing upstream `hermes-agent`.
+
+Generate the dashboard:
+
+```bash
+uv run --with-editable . el-zachariahs-drivers local-agents-ui \
+  --profiles-root /home/zachariah/.hermes/profiles \
+  --out build/local-agents-ui
+```
+
+Open `build/local-agents-ui/index.html` for the main board. The board automatically lists every detected local profile under `--profiles-root`; selecting an agent opens `build/local-agents-ui/agents/<profile>.html` with that profile's detected jobs/crons.
+
+Detection rules:
+
+- profiles are directories under `--profiles-root`;
+- jobs are read from `<profile>/cron/jobs.json` in either `{"jobs": [...]}` or list form;
+- latest job output is detected from `<profile>/cron/output/<job_id>/*.md`;
+- unknown/new jobs always get a default card with ID, schedule, enabled state, cron state, last status/error, repeat counters, workdir, toolsets, prompt preview, output, raw metadata keys, and a hint to add a custom view later;
+- known local patterns get custom views and optimization hints: GitHub/PR/review monitors, Proton/inbox monitors, local-agents UI drivers, agent-toolkit drivers, wealth-hunter/first-dollar loops, revenue experiments, agent health/readiness checks, watchdog/sentinel jobs, and curator/growth loops;
+- jobs with `last_error` render as error/attention cards so stale failures are visible without inspecting raw cron JSON.
+
+Agent-side cron/pattern guidance shown by the UI follows the durable driver invariant: unchanged status checks are controlled wait, not progress; repeated empty monitors should keep seen-state ledgers and return `[SILENT]`; active project-driver crons should end/remove themselves when the backlog is complete.
+
 ## Current status
 
 The designed v1 vertical is implemented through the optional thin Temporal-compatible skeleton:
