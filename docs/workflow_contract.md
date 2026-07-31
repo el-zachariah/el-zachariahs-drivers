@@ -290,6 +290,20 @@ A workflow change is adapter-neutral if the answer to each question is yes:
 4. Can a restart reconstruct the next trigger and owner from durable state alone?
 5. Does a repeated observation produce a controlled wait, blocker, terminal outcome, or explicit `STALLED` failure?
 
+## Optional Temporal-compatible skeleton
+
+Temporal is an adapter/runtime option, not the workflow contract. The v1 Temporal
+boundary therefore stays thin: `DurableWorkflowTemporalSkeleton` accepts a
+`TemporalWorkflowCommand` and plans a single `ActivityRequest` such as
+`workflow_store.replay_status` or `workflow_store.status`. The workflow code does
+not read files, call GitHub, invoke Hermes, or mutate adapter-private state. A
+worker binds the planned request to a Temporal activity, local JSON store, or fake
+test adapter and returns an `ActivityResultEnvelope`/status record with evidence.
+
+The module remains importable without `temporalio`; installing the optional
+`temporal` extra may apply Temporal decorators, but core tests exercise only the
+adapter-neutral contract shape.
+
 ## v1 acceptance criteria
 
 The first implementation slice should prove this contract before broad feature expansion:

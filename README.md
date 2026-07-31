@@ -69,6 +69,7 @@ src/el_zachariahs_drivers/
   workflows/
     project_driver.py                     Durable-runtime project lifecycle workflow skeleton.
     task_driver.py                        Durable-runtime bounded task workflow skeleton.
+    temporal_skeleton.py                  Optional Temporal-compatible boundary that plans adapter-neutral activities.
   activities/
     contracts.py                          Activity interfaces; side effects live behind these contracts.
   policies/
