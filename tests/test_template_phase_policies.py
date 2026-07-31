@@ -203,6 +203,34 @@ def test_validate_decision_accepts_task_rescope_terminal_cancellation():
     assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_TASK, decision) == decision
 
 
+def test_validate_decision_accepts_blocked_phase_terminal_cancellation():
+    decision = WorkflowDecision(
+        decision_id="d-blocked-cancelled",
+        decided_at="2026-07-31T05:15:09Z",
+        from_phase=TaskPhase.BLOCKED_NEEDS_ZO_EL,
+        to_phase="CANCELLED",
+        material_progress=True,
+        terminal_outcome=TerminalOutcome.CANCELLED,
+    )
+
+    assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_TASK, decision) == decision
+
+
+def test_validate_decision_rejects_human_blocker_routed_to_process_blocked_phase():
+    decision = WorkflowDecision(
+        decision_id="d-human-authority-misroute",
+        decided_at="2026-07-31T05:15:09Z",
+        from_phase=ProjectIntakePhase.PLANNING,
+        to_phase=ProjectIntakePhase.BLOCKED_NEEDS_EL_LE,
+        material_progress=True,
+        progress_signal=ProgressSignal.BLOCKER_CREATED,
+        blocker_to_record=blocker(WorkflowRole.HUMAN_APPROVER),
+    )
+
+    with pytest.raises(ValueError, match="must route to BLOCKED_NEEDS_ZO_EL"):
+        validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, decision)
+
+
 def test_workflow_decision_rejects_material_progress_without_signal_or_evidence_or_effect():
     with pytest.raises(ValidationError, match="material progress decisions require"):
         WorkflowDecision(

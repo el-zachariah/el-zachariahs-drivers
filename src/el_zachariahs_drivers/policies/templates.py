@@ -172,12 +172,14 @@ PROJECT_PHASE_POLICIES: Mapping[str, PhasePolicy] = {
         progress={ProgressSignal.BLOCKER_RESOLVED},
         wait=_CONTROLLED_WAIT,
         blockers=_ANY_BLOCKER_OWNER,
+        terminal={TerminalOutcome.CANCELLED},
     ),
     ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL: _policy(
         ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL,
         progress={ProgressSignal.BLOCKER_RESOLVED},
         wait=_CONTROLLED_WAIT,
         blockers=_ANY_BLOCKER_OWNER,
+        terminal={TerminalOutcome.CANCELLED},
     ),
 }
 
@@ -239,12 +241,14 @@ TASK_PHASE_POLICIES: Mapping[str, PhasePolicy] = {
         progress={ProgressSignal.BLOCKER_RESOLVED},
         wait=_CONTROLLED_WAIT,
         blockers=_ANY_BLOCKER_OWNER,
+        terminal={TerminalOutcome.CANCELLED},
     ),
     TaskPhase.BLOCKED_NEEDS_ZO_EL: _policy(
         TaskPhase.BLOCKED_NEEDS_ZO_EL,
         progress={ProgressSignal.BLOCKER_RESOLVED},
         wait=_CONTROLLED_WAIT,
         blockers=_ANY_BLOCKER_OWNER,
+        terminal={TerminalOutcome.CANCELLED},
     ),
 }
 
@@ -260,6 +264,12 @@ def phase_policy_for(driver_kind: DriverKind, phase: str) -> PhasePolicy:
         return TEMPLATE_PHASE_POLICIES[driver_kind][phase]
     except KeyError as exc:
         raise KeyError(f"no phase policy for {driver_kind}:{phase}") from exc
+
+
+def _blocked_phase_for(owner_role: WorkflowRole) -> str:
+    if owner_role == WorkflowRole.HUMAN_APPROVER:
+        return "BLOCKED_NEEDS_ZO_EL"
+    return "BLOCKED_NEEDS_EL_LE"
 
 
 def validate_decision_against_phase_policy(
@@ -307,6 +317,11 @@ def validate_decision_against_phase_policy(
         owner_role = decision.blocker_to_record.owner_role
         if owner_role not in policy.blocker_owner_roles:
             raise ValueError(f"blocker owner {owner_role} is not allowed from {driver_kind}:{decision.from_phase}")
+        expected_blocked_phase = _blocked_phase_for(owner_role)
+        if decision.to_phase != expected_blocked_phase:
+            raise ValueError(
+                f"blocker owner {owner_role} must route to {expected_blocked_phase}, not {decision.to_phase}"
+            )
 
     if decision.terminal_outcome and decision.terminal_outcome not in policy.terminal_outcomes:
         raise ValueError(
