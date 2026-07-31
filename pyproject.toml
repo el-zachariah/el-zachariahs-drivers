@@ -10,6 +10,9 @@ dependencies = [
   "pydantic>=2.7",
 ]
 
+[project.scripts]
+el-zachariahs-drivers = "el_zachariahs_drivers.cli:main"
+
 [project.optional-dependencies]
 temporal = ["temporalio>=1.7"]
 dev = ["pytest>=8", "ruff>=0.5"]

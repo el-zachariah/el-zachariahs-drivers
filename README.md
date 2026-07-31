@@ -63,7 +63,9 @@ docs/
     software_project_driver.md            Outer durable project lifecycle.
     software_task_driver.md               Inner bounded task lifecycle.
 src/el_zachariahs_drivers/
+  cli.py                                  Local JSON store/replay/status CLI.
   models.py                               Shared typed state/events.
+  state_store.py                          Local durable state/event/decision JSON store.
   workflows/
     project_driver.py                     Durable-runtime project lifecycle workflow skeleton.
     task_driver.py                        Durable-runtime bounded task workflow skeleton.

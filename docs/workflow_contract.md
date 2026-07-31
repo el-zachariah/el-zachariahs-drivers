@@ -183,6 +183,24 @@ threshold_response: BLOCKED_NEEDS_EL_LE | BLOCKED_NEEDS_ZO_EL | RETRY_SCHEDULED 
 
 If the workflow cannot name the awaited signal and the threshold response, it is not waiting; it is stalled.
 
+## Local durable store contract
+
+The local JSON store is a development/runtime adapter for the core contract, not
+the workflow brain. It persists four files for one workflow instance:
+
+```text
+initial_state.json   immutable WorkflowStateRecord seed
+events.jsonl         append-only WorkflowEvent log
+decisions.jsonl      append-only WorkflowDecision log
+current_state.json   derived WorkflowStateRecord snapshot
+```
+
+`current_state.json` is a convenience cache. After a restart, replay rebuilds it
+from `initial_state.json` plus `decisions.jsonl` using the same deterministic
+`apply_decision` function used during normal appends. The status view must be
+answerable from durable state alone: current phase, next trigger, blocker owner
+and required decision when blocked, evidence refs, and terminal outcome.
+
 ## Blocker policy
 
 A blocker is not a terminal state. It is a durable request for a specific owner role to provide a decision.
