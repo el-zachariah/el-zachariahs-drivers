@@ -317,7 +317,7 @@ def validate_decision_against_phase_policy(
         [decision.progress_signal] if decision.progress_signal else [],
         blocker=decision.blocker_to_record,
         done=decision.terminal_outcome == TerminalOutcome.DONE,
-        failed=decision.terminal_outcome == TerminalOutcome.FAILED,
+        failed=decision.terminal_outcome in {TerminalOutcome.CANCELLED, TerminalOutcome.FAILED},
     )
     if outcome == RunOutcome.STALLED:
         raise ValueError("decision does not produce material progress, controlled wait, blocker, or terminal outcome")

@@ -190,6 +190,19 @@ def test_validate_decision_accepts_terminal_only_from_configured_terminal_phase(
         validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, bad_terminal)
 
 
+def test_validate_decision_accepts_task_rescope_terminal_cancellation():
+    decision = WorkflowDecision(
+        decision_id="d-rescope-cancelled",
+        decided_at="2026-07-31T05:15:09Z",
+        from_phase=TaskPhase.RESCOPE_REQUESTED,
+        to_phase="CANCELLED",
+        material_progress=True,
+        terminal_outcome=TerminalOutcome.CANCELLED,
+    )
+
+    assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_TASK, decision) == decision
+
+
 def test_workflow_decision_rejects_material_progress_without_signal_or_evidence_or_effect():
     with pytest.raises(ValidationError, match="material progress decisions require"):
         WorkflowDecision(
