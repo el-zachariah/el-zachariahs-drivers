@@ -405,6 +405,35 @@ def test_resume_from_blocked_phase_clears_stale_blocker():
     assert updated.blocker is None
 
 
+def test_resume_from_blocked_phase_must_use_recorded_resume_option():
+    initial = state("BLOCKED_NEEDS_ZO_EL")
+    initial.blocker = blocker()
+    decision = WorkflowDecision(
+        decision_id="d-invalid-resume-blocked",
+        decided_at="2026-07-30T23:55:08Z",
+        from_phase="BLOCKED_NEEDS_ZO_EL",
+        to_phase="DOGFOOD_GATE",
+        material_progress=True,
+        progress_signal=ProgressSignal.DOGFOOD_STARTED,
+    )
+    with pytest.raises(ValueError, match="blocked resume transition must use a recorded resume option"):
+        apply_decision(initial, decision)
+
+
+def test_resume_from_blocked_phase_requires_existing_blocker_record():
+    initial = state("BLOCKED_NEEDS_ZO_EL")
+    decision = WorkflowDecision(
+        decision_id="d-missing-blocker-resume",
+        decided_at="2026-07-30T23:55:08Z",
+        from_phase="BLOCKED_NEEDS_ZO_EL",
+        to_phase="PROOF_RUNNING",
+        material_progress=True,
+        progress_signal=ProgressSignal.PROOF_STARTED,
+    )
+    with pytest.raises(ValueError, match="blocked states require a durable blocker before resume"):
+        apply_decision(initial, decision)
+
+
 def test_terminal_decision_from_blocked_phase_clears_stale_blocker():
     initial = state("BLOCKED_NEEDS_ZO_EL")
     initial.blocker = blocker()

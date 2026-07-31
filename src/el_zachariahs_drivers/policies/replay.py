@@ -30,6 +30,19 @@ def apply_decision(state: WorkflowStateRecord, decision: WorkflowDecision) -> Wo
         )
     if decision.to_phase.startswith("BLOCKED_NEEDS_") and decision.blocker_to_record is None:
         raise ValueError("blocked phases require a durable blocker record")
+    leaving_blocked_nonterminal = (
+        state.phase.startswith("BLOCKED_NEEDS_")
+        and not decision.to_phase.startswith("BLOCKED_NEEDS_")
+        and decision.terminal_outcome is None
+    )
+    if leaving_blocked_nonterminal:
+        if state.blocker is None:
+            raise ValueError("blocked states require a durable blocker before resume")
+        allowed_resume_phases = {
+            option.resulting_phase for option in state.blocker.resume_target.decision_options
+        }
+        if decision.to_phase not in allowed_resume_phases:
+            raise ValueError("blocked resume transition must use a recorded resume option")
 
     next_state = state.model_copy(deep=True)
     next_state.phase = decision.to_phase
