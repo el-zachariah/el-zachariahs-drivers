@@ -324,7 +324,10 @@ def validate_decision_against_phase_policy(
                 f"blocker owner {owner_role} must route to {expected_blocked_phase}, not {decision.to_phase}"
             )
         resume_target = decision.blocker_to_record.resume_target
-        if decision.progress_signal in blocker_signals and resume_target.blocked_phase != decision.from_phase:
+        is_new_blocker_route = decision.progress_signal in blocker_signals or str(decision.to_phase).startswith(
+            "BLOCKED_NEEDS_"
+        )
+        if is_new_blocker_route and resume_target.blocked_phase != decision.from_phase:
             raise ValueError(
                 "new blockers must record the source phase as resume_target.blocked_phase"
             )

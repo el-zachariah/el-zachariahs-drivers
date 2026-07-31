@@ -244,19 +244,22 @@ def test_validate_decision_rejects_human_blocker_routed_to_process_blocked_phase
         validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, decision)
 
 
-def test_validate_decision_rejects_task_blocker_with_project_resume_phases():
+@pytest.mark.parametrize("progress_signal", [ProgressSignal.BLOCKER_CREATED, None])
+def test_validate_decision_rejects_task_blocker_with_project_resume_phases(
+    progress_signal: ProgressSignal | None,
+):
     proof_auth_blocker = blocker(
         WorkflowRole.HUMAN_APPROVER,
         blocked_phase=ProjectIntakePhase.PROOF_AUTH_WAIT,
-        resume_phase=ProjectIntakePhase.PROOF_RUNNING,
+        resume_phase=TaskPhase.TESTING,
     )
     decision = WorkflowDecision(
-        decision_id="d-task-project-phase-blocker",
+        decision_id=f"d-task-project-phase-blocker-{progress_signal or 'implicit'}",
         decided_at="2026-07-31T17:55:00Z",
         from_phase=TaskPhase.TESTING,
         to_phase=TaskPhase.BLOCKED_NEEDS_ZO_EL,
         material_progress=True,
-        progress_signal=ProgressSignal.BLOCKER_CREATED,
+        progress_signal=progress_signal,
         blocker_to_record=proof_auth_blocker,
     )
 
