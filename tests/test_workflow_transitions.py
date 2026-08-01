@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from el_zachariahs_drivers.models import (
     ApprovedTargetBinding,
@@ -379,6 +380,21 @@ def test_driver_authorization_must_match_approved_binding_version():
     assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
     assert decision.blocker_to_record is not None
     assert "binding version mismatch" in decision.blocker_to_record.reason
+
+
+def test_driver_authorization_requires_durable_decision_and_activity_ids():
+    with pytest.raises(ValidationError) as exc_info:
+        DriverAuthorizationEvidence(
+            workflow_decision_id="",
+            activity_id="",
+            binding_version="",
+            authorized_by_role=WorkflowRole.DEVELOPER,
+        )
+
+    error_locations = {tuple(error["loc"]) for error in exc_info.value.errors()}
+    assert ("workflow_decision_id",) in error_locations
+    assert ("activity_id",) in error_locations
+    assert ("binding_version",) in error_locations
 
 
 def test_driver_authorized_progress_allows_pr_open_for_approved_target():
