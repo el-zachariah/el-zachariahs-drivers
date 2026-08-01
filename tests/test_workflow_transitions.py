@@ -15,6 +15,7 @@ from el_zachariahs_drivers.models import (
     WaitThresholdResponse,
     WorkflowRole,
 )
+from el_zachariahs_drivers.review_triggers import verify_review_trigger
 from el_zachariahs_drivers.workflows.project_driver import (
     decide_next_project_transition,
     next_project_phase,
@@ -111,6 +112,32 @@ def test_task_review_wait_transition_requires_durable_wait_policy():
     assert decision.material_progress is False
     assert decision.progress_signal == ProgressSignal.WAIT_TIMER_STARTED
     assert decision.wait_to_start == wait_policy()
+
+
+def test_task_review_wait_rejects_weak_tag_only_trigger_even_with_wait_policy():
+    task = TaskState(id="t1", title="Review", phase=TaskPhase.REVIEW_REQUESTED)
+    weak_trigger = verify_review_trigger(
+        target_reviewer="el-micaiah",
+        pr_url="https://github.com/el-zachariah/example/pull/1",
+        repo_visibility="PUBLIC",
+        reviewer_permission="read",
+        review_requests=[],
+        latest_reviewers=[],
+        tag_comment_url="https://github.com/el-zachariah/example/pull/1#issuecomment-1",
+    )
+
+    decision = decide_next_task_transition(
+        task,
+        decided_at="2026-07-31T04:40:02Z",
+        wait_to_start=wait_policy(),
+        review_trigger=weak_trigger,
+    )
+
+    assert decision.to_phase == TaskPhase.BLOCKED_NEEDS_EL_LE
+    assert decision.progress_signal == ProgressSignal.BLOCKER_CREATED
+    assert decision.blocker_to_record is not None
+    assert decision.blocker_to_record.owner_role == WorkflowRole.PROCESS_STEWARD
+    assert decision.wait_to_start is None
 
 
 def test_task_same_phase_transition_must_be_controlled_wait_not_no_op_progress():
@@ -224,6 +251,36 @@ def test_project_review_wait_transition_requires_durable_wait_policy():
     assert decision.progress_signal == ProgressSignal.WAIT_TIMER_STARTED
     assert decision.wait_to_start == wait_policy()
 
+
+
+def test_project_review_wait_rejects_weak_tag_only_trigger_even_with_wait_policy():
+    project = ProjectState(
+        id="p1",
+        title="Await review",
+        phase=ProjectIntakePhase.REVIEW_REQUESTED,
+    )
+    weak_trigger = verify_review_trigger(
+        target_reviewer="el-micaiah",
+        pr_url="https://github.com/el-zachariah/example/pull/1",
+        repo_visibility="PUBLIC",
+        reviewer_permission="read",
+        review_requests=[],
+        latest_reviewers=[],
+        tag_comment_url="https://github.com/el-zachariah/example/pull/1#issuecomment-1",
+    )
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-07-31T04:40:06Z",
+        wait_to_start=wait_policy(),
+        review_trigger=weak_trigger,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_EL_LE
+    assert decision.progress_signal == ProgressSignal.BLOCKER_CREATED
+    assert decision.blocker_to_record is not None
+    assert decision.blocker_to_record.owner_role == WorkflowRole.PROCESS_STEWARD
+    assert decision.wait_to_start is None
 
 
 def test_project_blocker_transition_preserves_durable_blocker():
