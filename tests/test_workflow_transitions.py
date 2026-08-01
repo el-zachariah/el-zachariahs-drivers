@@ -451,6 +451,24 @@ def test_driver_authorized_progress_allows_pr_open_for_approved_target():
     assert decision.to_phase == ProjectIntakePhase.PR_OPEN
     assert decision.material_progress is True
     assert decision.progress_signal == ProgressSignal.TASK_COMPLETED
+    assert decision.driver_authorization == driver_auth()
+
+
+def test_driver_authorized_progress_serializes_authorization_evidence():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+    authorization = driver_auth()
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T20:16:00Z",
+        candidate_target=local_ui_target(),
+        driver_authorization=authorization,
+        driver_test_mode=True,
+    )
+    persisted = type(decision).model_validate_json(decision.model_dump_json())
+
+    assert persisted.driver_authorization == authorization
 
 
 def test_driver_test_same_phase_task_execution_wait_does_not_require_authorization():

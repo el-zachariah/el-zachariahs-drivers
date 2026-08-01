@@ -449,6 +449,7 @@ class WorkflowDecision(BaseModel):
     wait_to_start: WaitPolicy | None = None
     blocker_to_record: Blocker | None = None
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+    driver_authorization: DriverAuthorizationEvidence | None = None
     terminal_outcome: TerminalOutcome | None = None
 
     @model_validator(mode="after")
@@ -468,6 +469,7 @@ class WorkflowDecision(BaseModel):
                 self.wait_to_start,
                 self.blocker_to_record,
                 self.evidence_refs,
+                self.driver_authorization,
                 self.terminal_outcome,
             )
         ):
@@ -491,6 +493,7 @@ class WorkflowDecision(BaseModel):
                 self.activities_to_schedule,
                 self.blocker_to_record,
                 self.evidence_refs,
+                self.driver_authorization,
                 self.terminal_outcome,
             )
         ):

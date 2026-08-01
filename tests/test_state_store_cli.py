@@ -8,6 +8,7 @@ import pytest
 from el_zachariahs_drivers.cli import main
 from el_zachariahs_drivers.models import (
     Blocker,
+    DriverAuthorizationEvidence,
     DriverInput,
     DriverKind,
     EvidenceRef,
@@ -60,6 +61,40 @@ def test_json_store_replays_decisions_after_restart(tmp_path: Path):
     replayed = restarted.replay()
     assert replayed == updated
     assert restarted.load_current_state() == updated
+
+
+def test_json_store_persists_driver_authorization_on_decision_replay(tmp_path: Path):
+    store = JsonWorkflowStore(tmp_path)
+    store.initialize(state("TASK_EXECUTION"))
+    authorization = DriverAuthorizationEvidence(
+        workflow_decision_id="decision-task-complete-1",
+        activity_id="activity-implement-approved-target",
+        binding_version="v1",
+        authorized_by_role=WorkflowRole.DEVELOPER,
+    )
+    decision = WorkflowDecision(
+        decision_id="d-authorized-task-complete",
+        decided_at="2026-08-01T20:16:00Z",
+        from_phase="TASK_EXECUTION",
+        to_phase="PR_OPEN",
+        material_progress=True,
+        progress_signal=ProgressSignal.TASK_COMPLETED,
+        driver_authorization=authorization,
+    )
+
+    updated = store.append_decision(decision)
+    persisted_decision = JsonWorkflowStore(tmp_path).iter_decisions()[0]
+    replayed = JsonWorkflowStore(tmp_path).replay()
+
+    assert updated.phase == "PR_OPEN"
+    assert replayed.phase == "PR_OPEN"
+    assert persisted_decision.driver_authorization == authorization
+    persisted_authorization = persisted_decision.driver_authorization
+    assert persisted_authorization is not None
+    assert persisted_authorization.workflow_decision_id == "decision-task-complete-1"
+    assert persisted_authorization.activity_id == "activity-implement-approved-target"
+    assert persisted_authorization.binding_version == "v1"
+    assert persisted_authorization.authorized_by_role == WorkflowRole.DEVELOPER
 
 
 def test_store_status_names_phase_next_trigger_blocker_and_evidence(tmp_path: Path):
