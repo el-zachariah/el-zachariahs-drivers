@@ -157,6 +157,114 @@ def test_binding_must_match_proposal_approval_record_and_discovery_refs():
     assert any("proposal digest" in failure for failure in check.failures)
 
 
+def test_binding_must_match_source_discovery_target_unless_substitute_is_explicitly_approved():
+    live_target, wrong_substitute = load_failed_run_targets()
+    binding = approved_binding(wrong_substitute)
+    approval_record = binding.approval_record
+    project = ProjectState(
+        id="p-local-ui",
+        title="Upgrade running local UI/dashboard",
+        proposal_required=True,
+        source_discovery=SourceDiscoveryReport(
+            intake_id="local-agents-ui-upgrade",
+            discovered_sources=[live_target],
+            recommended_target=live_target,
+            confidence=DiscoveryConfidence.HIGH,
+            required_next_gate=ProjectIntakePhase.PLAN_REVIEW,
+            evidence_refs=[evidence("fixture://failed_local_agents_ui_run")],
+        ),
+        proposal_approval=ProposalApprovalEvidence(
+            proposal_id="proposal-local-agents-ui",
+            proposal_version="v1",
+            proposal_digest="sha256:proposal-digest",
+            approved_by="zo-el",
+            approved_at="2026-08-01T16:20:00Z",
+            approval_record=approval_record,
+            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+        ),
+        approved_target_binding=binding,
+    )
+
+    check = check_proposal_gate(project)
+
+    assert check.status == ProposalGateStatus.TARGET_MISMATCH
+    assert check.ok is False
+    assert any("approved target is not the discovered/recommended target" in failure for failure in check.failures)
+
+
+def test_explicit_proposal_approved_substitute_can_pass_discovery_target_mismatch():
+    live_target, wrong_substitute = load_failed_run_targets()
+    substitute_ref = evidence("gh-pr://proposal-approved-substitute", EvidenceType.PROPOSAL_APPROVAL)
+    wrong_substitute.evidence_refs.append(substitute_ref)
+    binding = approved_binding(wrong_substitute)
+    binding.approved_substitute_artifacts.append(substitute_ref)
+    approval_record = binding.approval_record
+    project = ProjectState(
+        id="p-local-ui",
+        title="Upgrade running local UI/dashboard",
+        proposal_required=True,
+        source_discovery=SourceDiscoveryReport(
+            intake_id="local-agents-ui-upgrade",
+            discovered_sources=[live_target],
+            recommended_target=live_target,
+            confidence=DiscoveryConfidence.HIGH,
+            required_next_gate=ProjectIntakePhase.PLAN_REVIEW,
+            evidence_refs=[evidence("fixture://failed_local_agents_ui_run")],
+        ),
+        proposal_approval=ProposalApprovalEvidence(
+            proposal_id="proposal-local-agents-ui",
+            proposal_version="v1",
+            proposal_digest="sha256:proposal-digest",
+            approved_by="zo-el",
+            approved_at="2026-08-01T16:20:00Z",
+            approval_record=approval_record,
+            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+        ),
+        approved_target_binding=binding,
+    )
+
+    check = check_proposal_gate(project)
+
+    assert check.status == ProposalGateStatus.APPROVED
+    assert check.ok is True
+
+
+def test_unresolved_cross_profile_ownership_blocks_proposal_gate():
+    live_target, _wrong_substitute = load_failed_run_targets()
+    binding = approved_binding(live_target)
+    approval_record = binding.approval_record
+    project = ProjectState(
+        id="p-local-ui",
+        title="Upgrade running local UI/dashboard",
+        proposal_required=True,
+        source_discovery=SourceDiscoveryReport(
+            intake_id="local-agents-ui-upgrade",
+            discovered_sources=[live_target],
+            recommended_target=live_target,
+            ownership_boundary="target is under el-micaiah profile; route ownership before implementation",
+            confidence=DiscoveryConfidence.HIGH,
+            required_next_gate=ProjectIntakePhase.BLOCKED_NEEDS_EL_LE,
+            evidence_refs=[evidence("fixture://failed_local_agents_ui_run")],
+        ),
+        proposal_approval=ProposalApprovalEvidence(
+            proposal_id="proposal-local-agents-ui",
+            proposal_version="v1",
+            proposal_digest="sha256:proposal-digest",
+            approved_by="zo-el",
+            approved_at="2026-08-01T16:20:00Z",
+            approval_record=approval_record,
+            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+        ),
+        approved_target_binding=binding,
+    )
+
+    check = check_proposal_gate(project)
+
+    assert check.status == ProposalGateStatus.BLOCKED_OWNERSHIP
+    assert check.ok is False
+    assert any("ownership route is unresolved" in failure for failure in check.failures)
+
+
 def test_failed_run_fixture_detects_8787_to_9120_target_drift():
     live_target, wrong_substitute = load_failed_run_targets()
     project = ProjectState(

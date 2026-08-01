@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 
 from el_zachariahs_drivers.models import (
     ApprovedTargetBinding,
+    EvidenceRef,
+    ProjectIntakePhase,
     ProjectState,
     ProposalGateStatus,
     TargetSurface,
@@ -51,10 +53,10 @@ def check_proposal_gate(project: ProjectState) -> ProposalGateCheck:
             proposal_required=True,
             failures=["proposal approval must produce an approved target binding"],
         )
-    failures = _binding_evidence_failures(project)
+    status, failures = _binding_evidence_failures(project)
     if failures:
         return ProposalGateCheck(
-            status=ProposalGateStatus.REQUIRED_MISSING,
+            status=status,
             proposal_required=True,
             approved_binding_version=project.approved_target_binding.version,
             failures=failures,
@@ -66,16 +68,41 @@ def check_proposal_gate(project: ProjectState) -> ProposalGateCheck:
     )
 
 
-def _binding_evidence_failures(project: ProjectState) -> list[str]:
+def _binding_evidence_failures(project: ProjectState) -> tuple[ProposalGateStatus, list[str]]:
     binding = project.approved_target_binding
     if binding is None:
-        return ["proposal approval must produce an approved target binding"]
+        return ProposalGateStatus.REQUIRED_MISSING, ["proposal approval must produce an approved target binding"]
 
     failures: list[str] = []
+    blocked_ownership = False
+    target_mismatch = False
     if project.source_discovery is None:
         failures.append("source discovery report is required before proposal approval can pass")
-    elif not project.source_discovery.evidence_refs:
-        failures.append("source discovery report must include evidence refs")
+    else:
+        source_discovery = project.source_discovery
+        if not source_discovery.evidence_refs:
+            failures.append("source discovery report must include evidence refs")
+        if source_discovery.required_next_gate in {
+            ProjectIntakePhase.BLOCKED_NEEDS_EL_LE,
+            ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL,
+        }:
+            blocked_ownership = True
+            failures.append(
+                f"ownership route is unresolved: source discovery requires {source_discovery.required_next_gate}"
+            )
+        elif binding.source_discovery_refs and not _refs_overlap(
+            binding.source_discovery_refs, source_discovery.evidence_refs
+        ):
+            failures.append("approved target binding must cite the persisted source discovery evidence")
+
+        source_targets = [source_discovery.recommended_target] if source_discovery.recommended_target else []
+        source_targets.extend(source_discovery.discovered_sources)
+        if not any(_target_identity_matches(binding.target, target) for target in source_targets):
+            if not _has_explicit_substitute_approval(binding):
+                target_mismatch = True
+                failures.append(
+                    "approved target is not the discovered/recommended target and no explicit approved substitute evidence is recorded"
+                )
 
     if not binding.source_discovery_refs:
         failures.append("approved target binding must reference source discovery evidence")
@@ -83,7 +110,7 @@ def _binding_evidence_failures(project: ProjectState) -> list[str]:
     approval = project.proposal_approval
     if approval is None:
         failures.append("proposal approval evidence is required before proposal gate can pass")
-        return failures
+        return _proposal_gate_failure_status(blocked_ownership, target_mismatch), failures
 
     if binding.proposal_id != approval.proposal_id:
         failures.append(
@@ -103,7 +130,41 @@ def _binding_evidence_failures(project: ProjectState) -> list[str]:
         failures.append(
             f"approved_by mismatch: approval={approval.approved_by!r} binding={binding.approved_by!r}"
         )
-    return failures
+    return _proposal_gate_failure_status(blocked_ownership, target_mismatch), failures
+
+
+def _proposal_gate_failure_status(blocked_ownership: bool, target_mismatch: bool) -> ProposalGateStatus:
+    if blocked_ownership:
+        return ProposalGateStatus.BLOCKED_OWNERSHIP
+    if target_mismatch:
+        return ProposalGateStatus.TARGET_MISMATCH
+    return ProposalGateStatus.REQUIRED_MISSING
+
+
+def _ref_key(ref: EvidenceRef) -> tuple[str, str, str | None]:
+    return (str(ref.type), ref.uri, ref.digest)
+
+
+def _refs_overlap(left: list[EvidenceRef], right: list[EvidenceRef]) -> bool:
+    right_keys = {_ref_key(ref) for ref in right}
+    return any(_ref_key(ref) in right_keys for ref in left)
+
+
+def _target_identity_matches(left: TargetSurface, right: TargetSurface) -> bool:
+    fields = ("url", "port", "service_identity", "cwd", "repo", "worktree", "owner_profile")
+    return all(getattr(left, field) == getattr(right, field) for field in fields)
+
+
+def _has_explicit_substitute_approval(binding: ApprovedTargetBinding) -> bool:
+    """Return whether a non-discovered target was explicitly approved as a substitute.
+
+    The target binding cannot simply become the source of truth by naming a new
+    surface. It must carry proposal-approved substitute evidence on both the
+    binding and the substitute target so reviewers/auditors can see the bypass.
+    """
+    return bool(binding.approved_substitute_artifacts) and _refs_overlap(
+        binding.approved_substitute_artifacts, binding.target.evidence_refs
+    )
 
 
 def _field_failure(approved: str | int | None, candidate: str | int | None, field: str) -> str | None:
