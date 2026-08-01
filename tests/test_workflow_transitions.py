@@ -716,6 +716,31 @@ def test_project_final_report_rejects_unverified_live_ui_acceptance():
     assert "live verification is required" in decision.blocker_to_record.reason
 
 
+def test_project_final_report_rejects_report_that_opts_out_of_live_verification():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    project.acceptance_report = AcceptanceReport(
+        report_id="acceptance-local-ui-v1",
+        binding_version="v1",
+        target=local_ui_target(),
+        criteria=[
+            AcceptanceCriterionProof(
+                criterion="upgrade the currently running local UI/dashboard",
+                satisfied=True,
+                evidence_refs=[evidence("proof://1", EvidenceType.PROOF)],
+            )
+        ],
+        live_verification_required=False,
+        live_verification_passed=None,
+        evidence_refs=[evidence("proof://acceptance-report", EvidenceType.REPORT)],
+    )
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T22:21:30Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "live verification is required" in decision.blocker_to_record.reason
+
+
 def test_project_final_report_rejects_missing_original_intake_criteria():
     project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
     project.acceptance_report = acceptance_report_for(local_ui_target(), criteria=["some other criterion"])

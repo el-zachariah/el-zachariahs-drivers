@@ -288,7 +288,9 @@ def check_acceptance_proof(project: ProjectState) -> AcceptanceProofCheck:
         if not proof.evidence_refs:
             failures.append(f"acceptance criterion lacks evidence: {proof.criterion!r}")
 
-    if report.live_verification_required and report.live_verification_passed is not True:
+    if not report.live_verification_required:
+        failures.append("live verification is required for proposal-required terminal acceptance")
+    if report.live_verification_passed is not True:
         failures.append("live verification is required for this acceptance report and has not passed")
 
     if not report.evidence_refs:
