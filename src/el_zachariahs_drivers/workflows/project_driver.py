@@ -22,7 +22,10 @@ from el_zachariahs_drivers.models import (
     WorkflowDecision,
     WorkflowRole,
 )
-from el_zachariahs_drivers.policies.proposal import check_project_transition_gate
+from el_zachariahs_drivers.policies.proposal import (
+    check_acceptance_proof,
+    check_project_transition_gate,
+)
 from el_zachariahs_drivers.review_triggers import ReviewTriggerState, ReviewTriggerVerification
 
 
@@ -199,6 +202,44 @@ def decide_next_project_transition(
         )
 
     if next_phase == ProjectIntakePhase.DONE:
+        acceptance_check = check_acceptance_proof(state)
+        if not acceptance_check.ok:
+            blocker = Blocker(
+                reason=(
+                    f"V2 DONE gate blocked {state.id}: "
+                    + "; ".join(acceptance_check.failures)
+                ),
+                category="human_authority",
+                owner=DriverActor.ZO_EL,
+                owner_role=WorkflowRole.HUMAN_APPROVER,
+                required_decision="provide acceptance proof for the approved target or return to plan rethink",
+                resume_target=ResumeTarget(
+                    blocked_phase=str(state.phase),
+                    resume_phase_if_unblocked=str(ProjectIntakePhase.FINAL_REPORT),
+                    resume_activity="verify_original_intake_acceptance",
+                    decision_options=[
+                        ResumeDecisionOption(
+                            decision="acceptance_proof_verified",
+                            resulting_phase=str(ProjectIntakePhase.FINAL_REPORT),
+                            notes="Retry DONE after criteria-by-criteria proof matches the approved target binding.",
+                        ),
+                        ResumeDecisionOption(
+                            decision="acceptance_failed_plan_rethink_required",
+                            resulting_phase=str(ProjectIntakePhase.PLAN_RETHINK),
+                            notes="Return to plan rethink if proof shows target drift or unmet original criteria.",
+                        ),
+                    ],
+                ),
+            )
+            return WorkflowDecision(
+                decision_id=decision_id or f"{state.id}:{state.phase}:done-gate-blocked",
+                decided_at=decided_at,
+                from_phase=state.phase,
+                to_phase=ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL,
+                material_progress=True,
+                progress_signal=ProgressSignal.BLOCKER_CREATED,
+                blocker_to_record=blocker,
+            )
         return WorkflowDecision(
             decision_id=decision_id or f"{state.id}:{state.phase}:done",
             decided_at=decided_at,
@@ -206,6 +247,7 @@ def decide_next_project_transition(
             to_phase=next_phase,
             material_progress=True,
             progress_signal=progress_signal,
+            evidence_refs=acceptance_check.evidence_refs,
             terminal_outcome=TerminalOutcome.DONE,
         )
 
