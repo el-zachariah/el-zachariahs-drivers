@@ -290,12 +290,13 @@ def check_project_transition_gate(
     return ProjectTransitionGateCheck(
         ok=False,
         failures=failures,
-        blocker=_blocker_for_transition_gate(project.id, next_phase, status, failures),
+        blocker=_blocker_for_transition_gate(project.id, project.phase, next_phase, status, failures),
     )
 
 
 def _blocker_for_transition_gate(
     project_id: str,
+    from_phase: ProjectIntakePhase,
     next_phase: ProjectIntakePhase,
     status: ProposalGateStatus,
     failures: list[str],
@@ -305,13 +306,11 @@ def _blocker_for_transition_gate(
         owner = DriverActor.EL_LE
         category = "process"
         required_decision = "route cross-profile target ownership and resume proposal review"
-        blocked_phase = ProjectIntakePhase.BLOCKED_NEEDS_EL_LE
     else:
         owner_role = WorkflowRole.HUMAN_APPROVER
         owner = DriverActor.ZO_EL
         category = "human_authority"
         required_decision = "approve a source-backed proposal/target binding or request plan rethink"
-        blocked_phase = ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
 
     return Blocker(
         reason=f"V2 transition gate blocked {project_id} before {next_phase}: " + "; ".join(failures),
@@ -320,7 +319,7 @@ def _blocker_for_transition_gate(
         owner_role=owner_role,
         required_decision=required_decision,
         resume_target=ResumeTarget(
-            blocked_phase=str(blocked_phase),
+            blocked_phase=str(from_phase),
             resume_phase_if_unblocked=str(ProjectIntakePhase.PLAN_REVIEW),
             resume_activity="review_source_backed_proposal",
             decision_options=[

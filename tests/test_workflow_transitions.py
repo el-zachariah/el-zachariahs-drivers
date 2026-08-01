@@ -7,6 +7,7 @@ from el_zachariahs_drivers.models import (
     DiscoveryConfidence,
     DriverActor,
     DriverAuthorizationEvidence,
+    DriverKind,
     EvidenceRef,
     EvidenceType,
     ProgressSignal,
@@ -24,6 +25,7 @@ from el_zachariahs_drivers.models import (
     WaitThresholdResponse,
     WorkflowRole,
 )
+from el_zachariahs_drivers.policies.templates import validate_decision_against_phase_policy
 from el_zachariahs_drivers.review_triggers import verify_review_trigger
 from el_zachariahs_drivers.workflows.project_driver import (
     decide_next_project_transition,
@@ -350,6 +352,8 @@ def test_driver_test_progress_requires_driver_authorization_evidence():
     assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
     assert decision.blocker_to_record is not None
     assert "requires driver authorization evidence" in decision.blocker_to_record.reason
+    assert decision.blocker_to_record.resume_target.blocked_phase == ProjectIntakePhase.TASK_EXECUTION
+    assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, decision) == decision
 
 
 def test_supervisor_intervention_cannot_count_as_driver_authorized_progress():
