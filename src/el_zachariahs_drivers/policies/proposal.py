@@ -9,6 +9,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from el_zachariahs_drivers.models import (
+    AcceptanceReport,
     ApprovedTargetBinding,
     Blocker,
     DriverActor,
@@ -49,6 +50,12 @@ class ProjectTransitionGateCheck(BaseModel):
     ok: bool
     failures: list[str] = Field(default_factory=list)
     blocker: Blocker | None = None
+
+
+class AcceptanceProofCheck(BaseModel):
+    ok: bool
+    failures: list[str] = Field(default_factory=list)
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
 
 
 GATED_IMPLEMENTATION_PHASES = {
@@ -193,6 +200,16 @@ def _has_explicit_substitute_approval(binding: ApprovedTargetBinding) -> bool:
     )
 
 
+def _has_report_substitute_approval(
+    binding: ApprovedTargetBinding,
+    report: AcceptanceReport,
+) -> bool:
+    """Return whether acceptance proof may satisfy an approved substitute artifact."""
+    return bool(binding.approved_substitute_artifacts) and bool(report.substitute_approval_refs) and _refs_overlap(
+        binding.approved_substitute_artifacts, report.substitute_approval_refs
+    )
+
+
 def _field_failure(approved: str | int | None, candidate: str | int | None, field: str) -> str | None:
     if approved is None:
         return None if candidate is None else f"{field} unexpected: approved=None candidate={candidate!r}"
@@ -230,6 +247,54 @@ def check_project_target_binding(project: ProjectState, candidate: TargetSurface
             failures=["no approved target binding is recorded"],
         )
     return target_matches_binding(project.approved_target_binding, candidate)
+
+
+def check_acceptance_proof(project: ProjectState) -> AcceptanceProofCheck:
+    """Validate terminal DONE proof against the approved target and original criteria."""
+    if not project.proposal_required:
+        return AcceptanceProofCheck(ok=True)
+
+    proposal_check = check_proposal_gate(project)
+    failures = list(proposal_check.failures)
+    if project.approved_target_binding is None:
+        failures.append("approved target binding is required before DONE")
+        return AcceptanceProofCheck(ok=False, failures=failures)
+
+    binding = project.approved_target_binding
+    report = project.acceptance_report
+    if report is None:
+        failures.append("acceptance report is required before DONE")
+        return AcceptanceProofCheck(ok=False, failures=failures)
+
+    if report.binding_version != binding.version:
+        failures.append(
+            "acceptance report binding version mismatch: "
+            f"approved={binding.version!r} report={report.binding_version!r}"
+        )
+
+    target_check = target_matches_binding(binding, report.target)
+    if not target_check.ok and not _has_report_substitute_approval(binding, report):
+        failures.extend(target_check.failures)
+        failures.append("substitute deliverable is not explicitly approved for terminal acceptance")
+
+    proved_criteria = {proof.criterion for proof in report.criteria if proof.satisfied and proof.evidence_refs}
+    for criterion in binding.covered_acceptance_criteria:
+        if criterion not in proved_criteria:
+            failures.append(f"missing acceptance proof for original criterion: {criterion!r}")
+
+    for proof in report.criteria:
+        if not proof.satisfied:
+            failures.append(f"acceptance criterion is not satisfied: {proof.criterion!r}")
+        if not proof.evidence_refs:
+            failures.append(f"acceptance criterion lacks evidence: {proof.criterion!r}")
+
+    if report.live_verification_required and report.live_verification_passed is not True:
+        failures.append("live verification is required for this acceptance report and has not passed")
+
+    if not report.evidence_refs:
+        failures.append("acceptance report must include evidence refs")
+
+    return AcceptanceProofCheck(ok=not failures, failures=failures, evidence_refs=report.evidence_refs)
 
 
 def check_project_transition_gate(

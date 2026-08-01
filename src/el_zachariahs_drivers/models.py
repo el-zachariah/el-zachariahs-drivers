@@ -249,6 +249,28 @@ class ApprovedTargetBinding(BaseModel):
     source_discovery_refs: list[EvidenceRef] = Field(default_factory=list)
 
 
+class AcceptanceCriterionProof(BaseModel):
+    """Criterion-by-criterion proof for terminal DONE validation."""
+
+    criterion: str
+    satisfied: bool
+    evidence_refs: list[EvidenceRef] = Field(min_length=1)
+    notes: str | None = None
+
+
+class AcceptanceReport(BaseModel):
+    """Evidence-backed report proving the approved target satisfies original intake criteria."""
+
+    report_id: str
+    binding_version: str | None = Field(default=None, min_length=1)
+    target: TargetSurface
+    criteria: list[AcceptanceCriterionProof] = Field(min_length=1)
+    live_verification_required: bool = False
+    live_verification_passed: bool | None = None
+    substitute_approval_refs: list[EvidenceRef] = Field(default_factory=list)
+    evidence_refs: list[EvidenceRef] = Field(min_length=1)
+
+
 class DriverAuthorizationEvidence(BaseModel):
     """Evidence that a material progress signal was authorized by the driver.
 
@@ -568,6 +590,7 @@ class ProjectState(BaseModel):
     source_discovery: SourceDiscoveryReport | None = None
     proposal_approval: ProposalApprovalEvidence | None = None
     approved_target_binding: ApprovedTargetBinding | None = None
+    acceptance_report: AcceptanceReport | None = None
     tasks: list[TaskState] = Field(default_factory=list)
     current_task_id: str | None = None
     pr_url: str | None = None

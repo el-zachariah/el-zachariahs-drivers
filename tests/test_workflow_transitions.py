@@ -2,6 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from el_zachariahs_drivers.models import (
+    AcceptanceCriterionProof,
+    AcceptanceReport,
     ApprovedTargetBinding,
     Blocker,
     DiscoveryConfidence,
@@ -655,7 +657,88 @@ def test_already_blocked_project_transition_is_controlled_wait_not_new_blocker_p
 
 
 
-def test_project_final_report_decision_is_terminal_done():
+def acceptance_report_for(
+    target: TargetSurface,
+    *,
+    criteria: list[str] | None = None,
+    live_verified: bool = True,
+    binding_version: str = "v1",
+) -> AcceptanceReport:
+    covered_criteria = criteria or ["upgrade the currently running local UI/dashboard"]
+    return AcceptanceReport(
+        report_id="acceptance-local-ui-v1",
+        binding_version=binding_version,
+        target=target,
+        criteria=[
+            AcceptanceCriterionProof(
+                criterion=criterion,
+                satisfied=True,
+                evidence_refs=[evidence(f"proof://{index}", EvidenceType.PROOF)],
+            )
+            for index, criterion in enumerate(covered_criteria, start=1)
+        ],
+        live_verification_required=True,
+        live_verification_passed=live_verified,
+        evidence_refs=[evidence("proof://acceptance-report", EvidenceType.REPORT)],
+    )
+
+
+def test_project_final_report_decision_requires_acceptance_report_for_ambiguous_project():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+
+    decision = decide_next_project_transition(project, decided_at="2026-07-31T04:40:08Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "acceptance report" in decision.blocker_to_record.reason
+
+
+def test_project_final_report_rejects_acceptance_report_for_wrong_preview_target():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    project.acceptance_report = acceptance_report_for(wrong_preview_target())
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T22:20:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "port mismatch" in decision.blocker_to_record.reason
+    assert "owner_profile mismatch" in decision.blocker_to_record.reason
+
+
+def test_project_final_report_rejects_unverified_live_ui_acceptance():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    project.acceptance_report = acceptance_report_for(local_ui_target(), live_verified=False)
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T22:21:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "live verification is required" in decision.blocker_to_record.reason
+
+
+def test_project_final_report_rejects_missing_original_intake_criteria():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    project.acceptance_report = acceptance_report_for(local_ui_target(), criteria=["some other criterion"])
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T22:22:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "missing acceptance proof" in decision.blocker_to_record.reason
+
+
+def test_project_final_report_decision_is_terminal_done_with_verified_acceptance_report():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    project.acceptance_report = acceptance_report_for(local_ui_target())
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T22:23:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.DONE
+    assert decision.terminal_outcome == TerminalOutcome.DONE
+    assert decision.evidence_refs == project.acceptance_report.evidence_refs
+
+
+def test_project_final_report_decision_is_terminal_done_when_proposal_not_required():
     project = ProjectState(id="p1", title="Done", phase=ProjectIntakePhase.FINAL_REPORT)
 
     decision = decide_next_project_transition(project, decided_at="2026-07-31T04:40:08Z")
