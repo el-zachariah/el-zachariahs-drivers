@@ -88,6 +88,7 @@ def test_store_status_includes_blocker_local_evidence(tmp_path: Path):
                     resume_target=ResumeTarget(
                         blocked_phase="PROOF_AUTH_WAIT",
                         resume_phase_if_unblocked="PROOF_RUNNING",
+                        resume_activity="run_proof",
                         decision_options=[
                             ResumeDecisionOption(
                                 decision="authorize",
@@ -105,6 +106,34 @@ def test_store_status_includes_blocker_local_evidence(tmp_path: Path):
     status = store.status()
 
     assert status.next_trigger == "blocker:human_approver:Authorize proof run"
+    assert status.waiting_on == {
+        "kind": "blocker",
+        "owner_role": "human_approver",
+        "phase": "BLOCKED_NEEDS_ZO_EL",
+        "required_decision": "Authorize proof run",
+        "resume_phase_if_unblocked": "PROOF_RUNNING",
+        "resume_activity": "run_proof",
+    }
+    assert status.human_action_required == {
+        "title": "Waiting on human approver",
+        "owner_role": "human_approver",
+        "category": "human_authority",
+        "required_action": "Authorize proof run",
+        "reason": "Proof service needs human authorization",
+        "resume_target": {
+            "blocked_phase": "PROOF_AUTH_WAIT",
+            "resume_phase_if_unblocked": "PROOF_RUNNING",
+            "resume_activity": "run_proof",
+            "decision_options": [
+                {
+                    "decision": "authorize",
+                    "resulting_phase": "PROOF_RUNNING",
+                    "notes": "Continue proof run after approval",
+                }
+            ],
+        },
+        "evidence_uris": ["file://proof.log"],
+    }
     assert status.evidence_uris == ["file://proof.log"]
 
 
@@ -130,6 +159,8 @@ def test_cli_init_append_replay_and_status(tmp_path: Path, capsys: pytest.Captur
         "phase": "PLAN_REVIEW",
         "next_trigger": "event",
         "blocker": None,
+        "waiting_on": None,
+        "human_action_required": None,
         "evidence_uris": ["file://plan.md"],
         "terminal": None,
     }
