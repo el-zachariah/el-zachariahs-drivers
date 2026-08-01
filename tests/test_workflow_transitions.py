@@ -458,6 +458,41 @@ def test_driver_authorized_progress_allows_pr_open_for_approved_target():
     assert decision.driver_authorization == driver_auth()
 
 
+def test_driver_test_pr_artifact_progress_requires_driver_authorization_evidence():
+    project = approved_local_ui_project(ProjectIntakePhase.PR_OPEN)
+    project.pr_url = "https://github.com/el-zachariah/el-zachariahs-drivers/pull/26"
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T21:45:00Z",
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "requires driver authorization evidence" in decision.blocker_to_record.reason
+    assert decision.blocker_to_record.resume_target.blocked_phase == ProjectIntakePhase.PR_OPEN
+    assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, decision) == decision
+
+
+def test_driver_authorized_pr_artifact_progress_allows_review_requested():
+    project = approved_local_ui_project(ProjectIntakePhase.PR_OPEN)
+    project.pr_url = "https://github.com/el-zachariah/el-zachariahs-drivers/pull/26"
+    authorization = driver_auth()
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T21:46:00Z",
+        driver_authorization=authorization,
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.REVIEW_REQUESTED
+    assert decision.material_progress is True
+    assert decision.progress_signal == ProgressSignal.PR_CREATED
+    assert decision.driver_authorization == authorization
+
+
 def test_driver_authorized_progress_serializes_authorization_evidence():
     project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
     project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]

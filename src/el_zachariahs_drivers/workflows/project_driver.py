@@ -91,6 +91,7 @@ PROJECT_TRANSITION_SIGNALS: dict[tuple[ProjectIntakePhase, ProjectIntakePhase], 
 DRIVER_AUTHORIZED_DECISION_PHASES = {
     ProjectIntakePhase.TASK_EXECUTION,
     ProjectIntakePhase.PR_OPEN,
+    ProjectIntakePhase.REVIEW_REQUESTED,
 }
 
 

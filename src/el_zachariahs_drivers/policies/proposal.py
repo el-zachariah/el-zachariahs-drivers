@@ -60,6 +60,7 @@ GATED_IMPLEMENTATION_PHASES = {
 DRIVER_AUTHORIZED_PROGRESS_PHASES = {
     ProjectIntakePhase.TASK_EXECUTION,
     ProjectIntakePhase.PR_OPEN,
+    ProjectIntakePhase.REVIEW_REQUESTED,
 }
 
 
