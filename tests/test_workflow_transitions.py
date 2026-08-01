@@ -397,6 +397,23 @@ def test_driver_authorization_requires_durable_decision_and_activity_ids():
     assert ("binding_version",) in error_locations
 
 
+def test_driver_authorization_rejects_whitespace_only_identifiers():
+    with pytest.raises(ValidationError) as exc_info:
+        DriverAuthorizationEvidence(
+            workflow_decision_id="   ",
+            activity_id="\t",
+            binding_version="  ",
+            authorized_by_role=WorkflowRole.DEVELOPER,
+        )
+
+    errors = exc_info.value.errors()
+    error_locations = {tuple(error["loc"]) for error in errors}
+    assert ("workflow_decision_id",) in error_locations
+    assert ("activity_id",) in error_locations
+    assert ("binding_version",) in error_locations
+    assert all("must not be blank" in error["msg"] for error in errors)
+
+
 def test_driver_authorized_progress_allows_pr_open_for_approved_target():
     project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
     project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]

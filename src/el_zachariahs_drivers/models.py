@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ProjectIntakePhase(StrEnum):
@@ -257,7 +257,8 @@ class DriverAuthorizationEvidence(BaseModel):
     progress signal that claims to advance implementation/deploy/PR work must
     name the durable driver decision/activity and the approved target binding
     version it advances. Blank identifiers are invalid because they do not point
-    auditors back to an actual persisted workflow decision/activity.
+    auditors back to an actual persisted workflow decision/activity. Whitespace-
+    only identifiers are also invalid because they are equally unauditable.
     """
 
     workflow_decision_id: str = Field(min_length=1)
@@ -265,6 +266,13 @@ class DriverAuthorizationEvidence(BaseModel):
     binding_version: str | None = Field(default=None, min_length=1)
     authorized_by_role: WorkflowRole
     supervisor_intervention: bool = False
+
+    @field_validator("workflow_decision_id", "activity_id", "binding_version")
+    @classmethod
+    def _non_blank_identifier(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("driver authorization identifiers must not be blank")
+        return value
 
 
 class ResumeDecisionOption(BaseModel):
