@@ -801,6 +801,52 @@ def test_project_final_report_rejects_substitute_approval_reused_for_unapproved_
     assert "substitute deliverable is not explicitly approved" in decision.blocker_to_record.reason
 
 
+def test_project_final_report_rejects_copied_substitute_approval_ref_on_unapproved_target():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    assert project.approved_target_binding is not None
+    substitute_ref = evidence("gh-comment://approved-9120-preview", EvidenceType.PROPOSAL_APPROVAL)
+    approved_preview = wrong_preview_target()
+    approved_preview.evidence_refs = [substitute_ref]
+    project.approved_target_binding.approved_substitute_artifacts = [substitute_ref]
+    project.approved_target_binding.allowed_side_effect_surfaces = [approved_preview]
+    unapproved_preview = TargetSurface(
+        label="unapproved 9999 preview copying approval ref",
+        url="http://192.168.0.110:9999/",
+        port=9999,
+        service_identity="unapproved.preview",
+        cwd="/tmp/unapproved-preview",
+        repo="el-zachariah/unapproved-preview",
+        owner_profile="el-zachariah",
+        evidence_refs=[substitute_ref, evidence("preview://9999-run", EvidenceType.PROOF)],
+    )
+    project.acceptance_report = acceptance_report_for(unapproved_preview)
+    project.acceptance_report.substitute_approval_refs = [substitute_ref]
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T23:12:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "port mismatch" in decision.blocker_to_record.reason
+    assert "substitute deliverable is not explicitly approved" in decision.blocker_to_record.reason
+
+
+def test_project_final_report_accepts_specific_approved_substitute_target():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    assert project.approved_target_binding is not None
+    substitute_ref = evidence("gh-comment://approved-9120-preview", EvidenceType.PROPOSAL_APPROVAL)
+    approved_preview = wrong_preview_target()
+    approved_preview.evidence_refs = [substitute_ref, evidence("preview://9120-run", EvidenceType.PROOF)]
+    project.approved_target_binding.approved_substitute_artifacts = [substitute_ref]
+    project.approved_target_binding.allowed_side_effect_surfaces = [approved_preview]
+    project.acceptance_report = acceptance_report_for(approved_preview)
+    project.acceptance_report.substitute_approval_refs = [substitute_ref]
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T23:13:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.DONE
+    assert decision.terminal_outcome == TerminalOutcome.DONE
+
+
 def test_project_final_report_decision_is_terminal_done_with_verified_acceptance_report():
     project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
     project.acceptance_report = acceptance_report_for(local_ui_target())

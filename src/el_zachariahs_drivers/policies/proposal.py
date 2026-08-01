@@ -227,12 +227,27 @@ def _has_report_substitute_approval(
     binding: ApprovedTargetBinding,
     report: AcceptanceReport,
 ) -> bool:
-    """Return whether acceptance proof may satisfy an approved substitute artifact."""
-    return (
-        bool(binding.approved_substitute_artifacts)
-        and bool(report.substitute_approval_refs)
+    """Return whether acceptance proof may satisfy an approved substitute artifact.
+
+    A substitute approval ref is not a bearer token that any later report target
+    can copy onto itself. The approved substitute target must be represented in
+    the binding's allowed side-effect/substitute surfaces, must carry the same
+    approval evidence, and the report target must match that approved surface's
+    identity. This keeps terminal acceptance tied to the specific substitute the
+    human reviewed instead of any artifact that can cite the approval URI.
+    """
+    if not (
+        binding.approved_substitute_artifacts
+        and report.substitute_approval_refs
         and _refs_overlap(binding.approved_substitute_artifacts, report.substitute_approval_refs)
-        and _refs_overlap(binding.approved_substitute_artifacts, report.target.evidence_refs)
+    ):
+        return False
+
+    return any(
+        _target_identity_matches(approved_surface, report.target)
+        and _refs_overlap(binding.approved_substitute_artifacts, approved_surface.evidence_refs)
+        and _refs_overlap(report.substitute_approval_refs, report.target.evidence_refs)
+        for approved_surface in binding.allowed_side_effect_surfaces
     )
 
 
