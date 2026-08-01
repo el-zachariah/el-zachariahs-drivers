@@ -398,6 +398,24 @@ def test_driver_authorized_progress_allows_pr_open_for_approved_target():
     assert decision.progress_signal == ProgressSignal.TASK_COMPLETED
 
 
+def test_driver_test_same_phase_task_execution_wait_does_not_require_authorization():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.TESTING)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T18:12:00Z",
+        wait_to_start=wait_policy(),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.TASK_EXECUTION
+    assert decision.material_progress is False
+    assert decision.progress_signal == ProgressSignal.WAIT_TIMER_STARTED
+    assert decision.wait_to_start == wait_policy()
+    assert decision.blocker_to_record is None
+
+
 def test_project_transition_helper_emits_workflow_decision():
     project = ProjectState(id="p1", title="Planning", phase=ProjectIntakePhase.PLANNING)
 

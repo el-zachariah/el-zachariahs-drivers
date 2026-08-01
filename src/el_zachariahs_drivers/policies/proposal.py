@@ -244,6 +244,9 @@ def check_project_transition_gate(
     gate passes, target evidence must still match the approved binding, and
     driver-test progress must cite a non-supervisor driver authorization.
     """
+    if next_phase == project.phase:
+        return ProjectTransitionGateCheck(ok=True)
+
     failures: list[str] = []
     status = ProposalGateStatus.APPROVED
 
