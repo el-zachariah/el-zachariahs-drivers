@@ -9,6 +9,7 @@ from __future__ import annotations
 from el_zachariahs_drivers.models import (
     Blocker,
     DriverActor,
+    DriverAuthorizationEvidence,
     ProgressSignal,
     ProjectIntakePhase,
     ProjectState,
@@ -19,7 +20,9 @@ from el_zachariahs_drivers.models import (
     WaitPolicy,
     WorkflowDecision,
     WorkflowRole,
+    TargetSurface,
 )
+from el_zachariahs_drivers.policies.proposal import check_project_transition_gate
 from el_zachariahs_drivers.review_triggers import ReviewTriggerState, ReviewTriggerVerification
 
 
@@ -122,10 +125,35 @@ def decide_next_project_transition(
     decision_id: str | None = None,
     wait_to_start: WaitPolicy | None = None,
     review_trigger: ReviewTriggerVerification | None = None,
+    candidate_target: TargetSurface | None = None,
+    driver_authorization: DriverAuthorizationEvidence | None = None,
+    driver_test_mode: bool = False,
 ) -> WorkflowDecision:
     """Return the contract decision for the next deterministic project transition."""
     next_phase = next_project_phase(state)
     progress_signal = PROJECT_TRANSITION_SIGNALS.get((state.phase, next_phase))
+
+    gate_check = check_project_transition_gate(
+        state,
+        next_phase=next_phase,
+        candidate_target=candidate_target,
+        driver_authorization=driver_authorization,
+        driver_test_mode=driver_test_mode,
+    )
+    if not gate_check.ok:
+        blocker = gate_check.blocker
+        if blocker is None:
+            raise ValueError("transition gate failures must include a blocker")
+        blocked_phase = _blocked_phase_for(blocker.owner_role)
+        return WorkflowDecision(
+            decision_id=decision_id or f"{state.id}:{state.phase}:v2-transition-gate-blocked",
+            decided_at=decided_at,
+            from_phase=state.phase,
+            to_phase=blocked_phase,
+            material_progress=True,
+            progress_signal=ProgressSignal.BLOCKER_CREATED,
+            blocker_to_record=blocker,
+        )
 
     if state.blocker:
         if next_phase == state.phase:

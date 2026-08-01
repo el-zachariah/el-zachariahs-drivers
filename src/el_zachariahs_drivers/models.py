@@ -249,6 +249,23 @@ class ApprovedTargetBinding(BaseModel):
     source_discovery_refs: list[EvidenceRef] = Field(default_factory=list)
 
 
+class DriverAuthorizationEvidence(BaseModel):
+    """Evidence that a material progress signal was authorized by the driver.
+
+    Driver-test supervision may fix the driver or unblock process failures, but
+    those supervisor actions must not be mistaken for initiative progress. A
+    progress signal that claims to advance implementation/deploy/PR work must
+    name the durable driver decision/activity and the approved target binding
+    version it advances.
+    """
+
+    workflow_decision_id: str
+    activity_id: str
+    binding_version: str | None = None
+    authorized_by_role: WorkflowRole
+    supervisor_intervention: bool = False
+
+
 class ResumeDecisionOption(BaseModel):
     decision: str
     resulting_phase: str
