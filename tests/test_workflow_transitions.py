@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -27,6 +30,7 @@ from el_zachariahs_drivers.models import (
     WaitThresholdResponse,
     WorkflowRole,
 )
+from el_zachariahs_drivers.policies.proposal import audit_v2_process_invariants
 from el_zachariahs_drivers.policies.templates import validate_decision_against_phase_policy
 from el_zachariahs_drivers.review_triggers import verify_review_trigger
 from el_zachariahs_drivers.workflows.project_driver import (
@@ -865,3 +869,24 @@ def test_project_final_report_decision_is_terminal_done_when_proposal_not_requir
 
     assert decision.to_phase == ProjectIntakePhase.DONE
     assert decision.terminal_outcome == TerminalOutcome.DONE
+
+
+def test_failed_local_agents_ui_run_fixture_fails_v2_process_invariants():
+    fixture_path = Path(__file__).parent / "fixtures" / "failed_local_agents_ui_run.json"
+    fixture = json.loads(fixture_path.read_text())
+    project = ProjectState.model_validate(fixture["project"])
+    candidate_target = TargetSurface.model_validate(fixture["candidate_target"])
+
+    audit = audit_v2_process_invariants(
+        project,
+        candidate_target=candidate_target,
+        driver_test_mode=fixture["driver_test_mode"],
+    )
+
+    assert not audit.ok
+    failure_text = "\n".join(audit.failures)
+    assert "proposal approval must produce an approved target binding" in failure_text
+    assert "candidate port does not match discovered target" in failure_text
+    assert "candidate owner_profile does not match discovered target" in failure_text
+    assert "driver-test material progress requires driver authorization evidence" in failure_text
+    assert "approved target binding is required before DONE" in failure_text
