@@ -51,6 +51,14 @@ def check_proposal_gate(project: ProjectState) -> ProposalGateCheck:
             proposal_required=True,
             failures=["proposal approval must produce an approved target binding"],
         )
+    failures = _binding_evidence_failures(project)
+    if failures:
+        return ProposalGateCheck(
+            status=ProposalGateStatus.REQUIRED_MISSING,
+            proposal_required=True,
+            approved_binding_version=project.approved_target_binding.version,
+            failures=failures,
+        )
     return ProposalGateCheck(
         status=ProposalGateStatus.APPROVED,
         proposal_required=True,
@@ -58,8 +66,54 @@ def check_proposal_gate(project: ProjectState) -> ProposalGateCheck:
     )
 
 
-def _values_match(approved: str | int | None, candidate: str | int | None) -> bool:
-    return candidate is None or approved == candidate
+def _binding_evidence_failures(project: ProjectState) -> list[str]:
+    binding = project.approved_target_binding
+    if binding is None:
+        return ["proposal approval must produce an approved target binding"]
+
+    failures: list[str] = []
+    if project.source_discovery is None:
+        failures.append("source discovery report is required before proposal approval can pass")
+    elif not project.source_discovery.evidence_refs:
+        failures.append("source discovery report must include evidence refs")
+
+    if not binding.source_discovery_refs:
+        failures.append("approved target binding must reference source discovery evidence")
+
+    approval = project.proposal_approval
+    if approval is None:
+        failures.append("proposal approval evidence is required before proposal gate can pass")
+        return failures
+
+    if binding.proposal_id != approval.proposal_id:
+        failures.append(
+            f"proposal id mismatch: approval={approval.proposal_id!r} binding={binding.proposal_id!r}"
+        )
+    if binding.proposal_version != approval.proposal_version:
+        failures.append(
+            f"proposal version mismatch: approval={approval.proposal_version!r} binding={binding.proposal_version!r}"
+        )
+    if binding.proposal_digest != approval.proposal_digest:
+        failures.append(
+            f"proposal digest mismatch: approval={approval.proposal_digest!r} binding={binding.proposal_digest!r}"
+        )
+    if binding.approval_record != approval.approval_record:
+        failures.append("approval record mismatch between proposal approval and target binding")
+    if binding.approved_by != approval.approved_by:
+        failures.append(
+            f"approved_by mismatch: approval={approval.approved_by!r} binding={binding.approved_by!r}"
+        )
+    return failures
+
+
+def _field_failure(approved: str | int | None, candidate: str | int | None, field: str) -> str | None:
+    if approved is None:
+        return None if candidate is None else f"{field} unexpected: approved=None candidate={candidate!r}"
+    if candidate is None:
+        return f"missing candidate {field}: approved={approved!r}"
+    if approved != candidate:
+        return f"{field} mismatch: approved={approved!r} candidate={candidate!r}"
+    return None
 
 
 def target_matches_binding(binding: ApprovedTargetBinding, candidate: TargetSurface) -> TargetBindingCheck:
@@ -70,9 +124,10 @@ def target_matches_binding(binding: ApprovedTargetBinding, candidate: TargetSurf
     """
     fields = ("url", "port", "service_identity", "cwd", "repo", "worktree", "owner_profile")
     failures = [
-        f"{field} mismatch: approved={getattr(binding.target, field)!r} candidate={getattr(candidate, field)!r}"
+        failure
         for field in fields
-        if not _values_match(getattr(binding.target, field), getattr(candidate, field))
+        if (failure := _field_failure(getattr(binding.target, field), getattr(candidate, field), field))
+        is not None
     ]
     return TargetBindingCheck(
         status=ProposalGateStatus.APPROVED if not failures else ProposalGateStatus.TARGET_MISMATCH,
