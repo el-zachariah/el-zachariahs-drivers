@@ -110,9 +110,19 @@ Add `SourceDiscoveryReport` or equivalent with:
 
 Add transition validation that prevents ambiguous initiatives from entering `TASK_BREAKDOWN`, `TASK_EXECUTION`, or `PR_OPEN` until proposal approval evidence exists.
 
+Approval must produce a durable, versioned `ApprovedTargetBinding` (name can change during implementation) containing at minimum:
+
+- target URL/port/service identity, cwd, repo/worktree, and owning profile;
+- proposal digest/version and approval record/role;
+- original intake acceptance criteria covered by the approval;
+- allowed side-effect surfaces and explicitly approved substitute artifacts, if any;
+- evidence refs proving how the binding was derived from source discovery.
+
+The binding is not just an entry gate. `TASK_BREAKDOWN`, `TASK_EXECUTION`, `PR_OPEN`, change/deploy activity requests, and material progress signals must validate their target/evidence refs against the current approved binding. If later execution proposes a different repo, preview URL, replacement service, or cross-profile target than the binding allows, V2 must reject progress and route back through `PLAN_RETHINK`/`HUMAN_PLAN_REVIEW` for a new approval. This is the guard that prevents an approved `8787` live-UI target from silently drifting into a `9120` substitute repo/preview.
+
 ### 4. Driver authorization evidence
 
-Each implementation/deployment progress signal must reference an authorizing driver decision/activity. Supervisor interventions must be marked separately and cannot satisfy initiative progress by default.
+Each implementation/deployment progress signal must reference an authorizing driver decision/activity and the approved target binding version it claims to advance. Supervisor interventions must be marked separately and cannot satisfy initiative progress by default.
 
 ### 5. Acceptance proof / terminal policy
 
@@ -125,15 +135,16 @@ Add terminal policy that requires:
 
 ## Implementation slices
 
-### Slice A — Proposal/source-discovery models and status
+### Slice A — Proposal/source-discovery models, approved target binding, and early failed-run fixture
 
-Issues: #18, #21, #22.
+Issues: #18, #21, #22, early coverage for #23.
 
 Deliverables:
 
-- model(s) for source discovery and proposal approval evidence;
-- status fields showing proposal approval required/approved;
-- tests for cross-profile target discovery and proposal blocking.
+- model(s) for source discovery, proposal approval evidence, and versioned approved target binding;
+- status fields showing proposal approval required/approved and current approved target binding version;
+- an initial failed-run audit fixture capturing the `8787` live target versus `9120` substitute drift before policy code is added;
+- tests for cross-profile target discovery, proposal blocking, and binding mismatch detection.
 
 Verification:
 
@@ -156,8 +167,9 @@ Issues: #18, #20, #22.
 Deliverables:
 
 - policy rejecting implementation/PR phases without proposal approval for ambiguous initiatives;
+- policy rejecting `TASK_BREAKDOWN`, `TASK_EXECUTION`, `PR_OPEN`, change/deploy activity requests, or material progress whose target/evidence refs do not match the approved target binding;
 - policy rejecting material progress without driver authorization evidence in driver-test mode;
-- tests for both blocked and approved paths.
+- tests for blocked, approved, and target-drift paths.
 
 ### Slice C — Acceptance proof and DONE gate
 
@@ -184,14 +196,15 @@ Deliverables:
 1. Open this plan as a PR.
 2. Tag/request Micaiah with full context and explicit request to verify the plan before implementation.
 3. Do not implement V2 until plan review has been received and critical findings are resolved.
-4. After plan approval, implement one slice at a time.
-5. For each implementation PR:
+4. Seed #23's failed-run audit fixture early in Slice A so Slices A-C are repeatedly checked against the actual `8787`-vs-`9120` failure, then expand the invariant checker in Slice D.
+5. After plan approval, implement one slice at a time.
+6. For each implementation PR:
    - run py_compile and tests;
    - tag/request Micaiah;
    - address changes requested;
    - merge only after approval/mergeability verification;
    - close or update issues as evidence.
-6. End the loop when all critical issues #18-#22 are closed and #23 has a passing regression/audit fixture, or when a blocker with owner/decision is reached.
+7. End the loop when all critical issues #18-#22 are closed and #23 has a passing regression/audit fixture, or when a blocker with owner/decision is reached.
 
 ## Definition of good V2
 
@@ -201,5 +214,7 @@ V2 is good enough when the same local-agents UI initiative cannot repeat the fai
 - it identifies `/home/zachariah/Documents/el-micaiah/micaiah-status-ui` as cross-profile;
 - it produces a proposal for user review;
 - it waits for approval before implementation;
+- it carries the approved target binding through task breakdown, execution, PR/change/deploy artifacts, and material progress signals;
+- it rejects drift from the approved `8787` target to a `9120` preview/replacement unless that substitute is explicitly approved in a new proposal version;
 - it routes collaboration/ownership correctly;
 - it cannot mark `DONE` unless the approved target and original acceptance criteria are verified.
