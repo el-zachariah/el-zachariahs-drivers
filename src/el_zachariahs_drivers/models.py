@@ -155,6 +155,23 @@ class EvidenceType(StrEnum):
     REPORT = "report"
     ADAPTER_RECORD = "adapter_record"
     PROFILE = "profile"
+    SOURCE_DISCOVERY = "source_discovery"
+    PROPOSAL_APPROVAL = "proposal_approval"
+    TARGET_BINDING = "target_binding"
+
+
+class DiscoveryConfidence(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class ProposalGateStatus(StrEnum):
+    NOT_REQUIRED = "not_required"
+    REQUIRED_MISSING = "required_missing"
+    APPROVED = "approved"
+    BLOCKED_OWNERSHIP = "blocked_ownership"
+    TARGET_MISMATCH = "target_mismatch"
 
 
 class WaitThresholdResponse(StrEnum):
@@ -175,6 +192,61 @@ class EvidenceRef(BaseModel):
     type: EvidenceType
     uri: str
     digest: str | None = None
+
+
+class TargetSurface(BaseModel):
+    """A discovered or approved implementation surface.
+
+    This is intentionally explicit because V2 must distinguish the live target
+    the intake named from a substitute preview/replacement artifact.
+    """
+
+    label: str
+    url: str | None = None
+    port: int | None = None
+    service_identity: str | None = None
+    cwd: str | None = None
+    repo: str | None = None
+    worktree: str | None = None
+    owner_profile: str | None = None
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+
+
+class SourceDiscoveryReport(BaseModel):
+    intake_id: str
+    discovered_sources: list[TargetSurface] = Field(min_length=1)
+    recommended_target: TargetSurface | None = None
+    ownership_boundary: str | None = None
+    confidence: DiscoveryConfidence
+    required_next_gate: ProjectIntakePhase
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+
+
+class ProposalApprovalEvidence(BaseModel):
+    proposal_id: str
+    proposal_version: str
+    proposal_digest: str
+    approved_by: str
+    approved_at: str
+    approval_record: EvidenceRef
+    covered_acceptance_criteria: list[str] = Field(min_length=1)
+
+
+class ApprovedTargetBinding(BaseModel):
+    """Versioned target binding emitted by human-reviewed proposal approval."""
+
+    binding_id: str
+    version: str
+    target: TargetSurface
+    proposal_id: str
+    proposal_version: str
+    proposal_digest: str
+    approval_record: EvidenceRef
+    approved_by: str
+    covered_acceptance_criteria: list[str] = Field(min_length=1)
+    allowed_side_effect_surfaces: list[TargetSurface] = Field(default_factory=list)
+    approved_substitute_artifacts: list[EvidenceRef] = Field(default_factory=list)
+    source_discovery_refs: list[EvidenceRef] = Field(default_factory=list)
 
 
 class ResumeDecisionOption(BaseModel):
@@ -463,6 +535,10 @@ class ProjectState(BaseModel):
     id: str
     title: str
     phase: ProjectIntakePhase = ProjectIntakePhase.PROJECT_INTAKE_ASSIGNED
+    proposal_required: bool = False
+    source_discovery: SourceDiscoveryReport | None = None
+    proposal_approval: ProposalApprovalEvidence | None = None
+    approved_target_binding: ApprovedTargetBinding | None = None
     tasks: list[TaskState] = Field(default_factory=list)
     current_task_id: str | None = None
     pr_url: str | None = None

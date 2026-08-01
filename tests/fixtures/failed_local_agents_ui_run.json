@@ -1,0 +1,22 @@
+{
+  "intake_id": "local-agents-ui-upgrade",
+  "original_target": {
+    "label": "live micaiah status UI",
+    "url": "http://192.168.0.110:8787/",
+    "port": 8787,
+    "service_identity": "micaiah_status.server",
+    "cwd": "/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+    "repo": "/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+    "owner_profile": "el-micaiah"
+  },
+  "wrong_substitute": {
+    "label": "parallel hermes council mind preview",
+    "url": "http://192.168.0.110:9120/",
+    "port": 9120,
+    "service_identity": "hermes-council-mind preview",
+    "cwd": "/home/zachariah/Documents/el-zachariah/repos/hermes-council-mind",
+    "repo": "el-zachariah/hermes-council-mind",
+    "owner_profile": "el-zachariah"
+  },
+  "process_failure": "Workflow reached DONE using the substitute preview without human-approved target drift from the live 8787 service."
+}
