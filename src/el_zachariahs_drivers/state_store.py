@@ -13,7 +13,12 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from el_zachariahs_drivers.models import Blocker, WorkflowDecision, WorkflowEvent, WorkflowStateRecord
+from el_zachariahs_drivers.models import (
+    Blocker,
+    WorkflowDecision,
+    WorkflowEvent,
+    WorkflowStateRecord,
+)
 from el_zachariahs_drivers.policies.replay import apply_decision, replay_decisions
 
 

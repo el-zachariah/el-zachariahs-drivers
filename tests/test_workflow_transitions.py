@@ -1,13 +1,23 @@
 import pytest
+from pydantic import ValidationError
 
 from el_zachariahs_drivers.models import (
+    ApprovedTargetBinding,
     Blocker,
+    DiscoveryConfidence,
     DriverActor,
+    DriverAuthorizationEvidence,
+    DriverKind,
+    EvidenceRef,
+    EvidenceType,
     ProgressSignal,
     ProjectIntakePhase,
     ProjectState,
+    ProposalApprovalEvidence,
     ResumeDecisionOption,
     ResumeTarget,
+    SourceDiscoveryReport,
+    TargetSurface,
     TaskPhase,
     TaskState,
     TerminalOutcome,
@@ -15,6 +25,7 @@ from el_zachariahs_drivers.models import (
     WaitThresholdResponse,
     WorkflowRole,
 )
+from el_zachariahs_drivers.policies.templates import validate_decision_against_phase_policy
 from el_zachariahs_drivers.review_triggers import verify_review_trigger
 from el_zachariahs_drivers.workflows.project_driver import (
     decide_next_project_transition,
@@ -51,6 +62,89 @@ def blocker(owner_role: WorkflowRole = WorkflowRole.PROCESS_STEWARD) -> Blocker:
                 )
             ],
         ),
+    )
+
+
+def evidence(uri: str, type_: EvidenceType = EvidenceType.SOURCE_DISCOVERY) -> EvidenceRef:
+    return EvidenceRef(type=type_, uri=uri)
+
+
+def local_ui_target() -> TargetSurface:
+    return TargetSurface(
+        label="live micaiah status UI",
+        url="http://192.168.0.110:8787/",
+        port=8787,
+        service_identity="micaiah_status.server",
+        cwd="/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+        repo="/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+        owner_profile="el-micaiah",
+    )
+
+
+def wrong_preview_target() -> TargetSurface:
+    return TargetSurface(
+        label="parallel replacement preview",
+        url="http://192.168.0.110:9120/",
+        port=9120,
+        service_identity="hermes-council-mind.preview",
+        cwd="/home/zachariah/Documents/el-zachariah/repos/hermes-council-mind",
+        repo="el-zachariah/hermes-council-mind",
+        owner_profile="el-zachariah",
+    )
+
+
+def approved_local_ui_project(phase: ProjectIntakePhase) -> ProjectState:
+    target = local_ui_target()
+    discovery_ref = evidence("fixture://failed_local_agents_ui_run")
+    approval_ref = evidence("gh-pr://approval/local-ui", EvidenceType.PROPOSAL_APPROVAL)
+    return ProjectState(
+        id="p-local-ui",
+        title="Upgrade running local UI/dashboard",
+        phase=phase,
+        proposal_required=True,
+        source_discovery=SourceDiscoveryReport(
+            intake_id="local-agents-ui-upgrade",
+            discovered_sources=[target],
+            recommended_target=target,
+            confidence=DiscoveryConfidence.HIGH,
+            required_next_gate=ProjectIntakePhase.PLAN_REVIEW,
+            evidence_refs=[discovery_ref],
+        ),
+        proposal_approval=ProposalApprovalEvidence(
+            proposal_id="proposal-local-agents-ui",
+            proposal_version="v1",
+            proposal_digest="sha256:proposal-digest",
+            approved_by="zo-el",
+            approved_at="2026-08-01T16:20:00Z",
+            approval_record=approval_ref,
+            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+        ),
+        approved_target_binding=ApprovedTargetBinding(
+            binding_id="binding-local-agents-ui-v1",
+            version="v1",
+            target=target,
+            proposal_id="proposal-local-agents-ui",
+            proposal_version="v1",
+            proposal_digest="sha256:proposal-digest",
+            approval_record=approval_ref,
+            approved_by="zo-el",
+            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+            source_discovery_refs=[discovery_ref],
+        ),
+    )
+
+
+def driver_auth(
+    binding_version: str = "v1",
+    supervisor_intervention: bool = False,
+    authorized_by_role: WorkflowRole = WorkflowRole.DEVELOPER,
+) -> DriverAuthorizationEvidence:
+    return DriverAuthorizationEvidence(
+        workflow_decision_id="decision-task-complete-1",
+        activity_id="activity-implement-approved-target",
+        binding_version=binding_version,
+        authorized_by_role=authorized_by_role,
+        supervisor_intervention=supervisor_intervention,
     )
 
 
@@ -196,6 +290,242 @@ def test_already_blocked_task_transition_is_controlled_wait_not_new_blocker_prog
     assert decision.wait_to_start == wait_policy()
     assert decision.blocker_to_record == durable_blocker
 
+
+
+def test_ambiguous_project_cannot_enter_task_breakdown_without_approved_proposal_binding():
+    project = ProjectState(
+        id="p-local-ui",
+        title="Upgrade running local UI/dashboard",
+        phase=ProjectIntakePhase.PLAN_REVIEW,
+        proposal_required=True,
+    )
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T17:00:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.progress_signal == ProgressSignal.BLOCKER_CREATED
+    assert decision.blocker_to_record is not None
+    assert decision.blocker_to_record.owner_role == WorkflowRole.HUMAN_APPROVER
+    assert "approved target binding" in decision.blocker_to_record.reason
+
+
+def test_ambiguous_project_rejects_target_drift_before_task_breakdown():
+    project = approved_local_ui_project(ProjectIntakePhase.PLAN_REVIEW)
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T17:01:00Z",
+        candidate_target=wrong_preview_target(),
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "port mismatch" in decision.blocker_to_record.reason
+    assert "owner_profile mismatch" in decision.blocker_to_record.reason
+
+
+def test_ambiguous_project_allows_task_breakdown_for_approved_target():
+    project = approved_local_ui_project(ProjectIntakePhase.PLAN_REVIEW)
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T17:02:00Z",
+        candidate_target=local_ui_target(),
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.TASK_BREAKDOWN
+    assert decision.material_progress is True
+    assert decision.progress_signal == ProgressSignal.PLAN_APPROVED
+
+
+def test_driver_test_progress_requires_driver_authorization_evidence():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T17:03:00Z",
+        candidate_target=local_ui_target(),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "requires driver authorization evidence" in decision.blocker_to_record.reason
+    assert decision.blocker_to_record.resume_target.blocked_phase == ProjectIntakePhase.TASK_EXECUTION
+    assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, decision) == decision
+
+
+def test_supervisor_intervention_cannot_count_as_driver_authorized_progress():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T17:04:00Z",
+        candidate_target=local_ui_target(),
+        driver_authorization=driver_auth(supervisor_intervention=True),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "supervisor intervention cannot count" in decision.blocker_to_record.reason
+
+
+def test_process_steward_authorization_cannot_count_as_driver_authorized_progress():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T19:50:00Z",
+        candidate_target=local_ui_target(),
+        driver_authorization=driver_auth(authorized_by_role=WorkflowRole.PROCESS_STEWARD),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "must be authorized by the developer role" in decision.blocker_to_record.reason
+    assert "process_steward" in decision.blocker_to_record.reason
+
+
+def test_driver_authorization_must_match_approved_binding_version():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T17:05:00Z",
+        candidate_target=local_ui_target(),
+        driver_authorization=driver_auth(binding_version="stale-v0"),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "binding version mismatch" in decision.blocker_to_record.reason
+
+
+def test_driver_authorization_requires_durable_decision_and_activity_ids():
+    with pytest.raises(ValidationError) as exc_info:
+        DriverAuthorizationEvidence(
+            workflow_decision_id="",
+            activity_id="",
+            binding_version="",
+            authorized_by_role=WorkflowRole.DEVELOPER,
+        )
+
+    error_locations = {tuple(error["loc"]) for error in exc_info.value.errors()}
+    assert ("workflow_decision_id",) in error_locations
+    assert ("activity_id",) in error_locations
+    assert ("binding_version",) in error_locations
+
+
+def test_driver_authorization_rejects_whitespace_only_identifiers():
+    with pytest.raises(ValidationError) as exc_info:
+        DriverAuthorizationEvidence(
+            workflow_decision_id="   ",
+            activity_id="\t",
+            binding_version="  ",
+            authorized_by_role=WorkflowRole.DEVELOPER,
+        )
+
+    errors = exc_info.value.errors()
+    error_locations = {tuple(error["loc"]) for error in errors}
+    assert ("workflow_decision_id",) in error_locations
+    assert ("activity_id",) in error_locations
+    assert ("binding_version",) in error_locations
+    assert all("must not be blank" in error["msg"] for error in errors)
+
+
+def test_driver_authorized_progress_allows_pr_open_for_approved_target():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T17:06:00Z",
+        candidate_target=local_ui_target(),
+        driver_authorization=driver_auth(),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.PR_OPEN
+    assert decision.material_progress is True
+    assert decision.progress_signal == ProgressSignal.TASK_COMPLETED
+    assert decision.driver_authorization == driver_auth()
+
+
+def test_driver_test_pr_artifact_progress_requires_driver_authorization_evidence():
+    project = approved_local_ui_project(ProjectIntakePhase.PR_OPEN)
+    project.pr_url = "https://github.com/el-zachariah/el-zachariahs-drivers/pull/26"
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T21:45:00Z",
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "requires driver authorization evidence" in decision.blocker_to_record.reason
+    assert decision.blocker_to_record.resume_target.blocked_phase == ProjectIntakePhase.PR_OPEN
+    assert validate_decision_against_phase_policy(DriverKind.SOFTWARE_PROJECT, decision) == decision
+
+
+def test_driver_authorized_pr_artifact_progress_allows_review_requested():
+    project = approved_local_ui_project(ProjectIntakePhase.PR_OPEN)
+    project.pr_url = "https://github.com/el-zachariah/el-zachariahs-drivers/pull/26"
+    authorization = driver_auth()
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T21:46:00Z",
+        driver_authorization=authorization,
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.REVIEW_REQUESTED
+    assert decision.material_progress is True
+    assert decision.progress_signal == ProgressSignal.PR_CREATED
+    assert decision.driver_authorization == authorization
+
+
+def test_driver_authorized_progress_serializes_authorization_evidence():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+    authorization = driver_auth()
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T20:16:00Z",
+        candidate_target=local_ui_target(),
+        driver_authorization=authorization,
+        driver_test_mode=True,
+    )
+    persisted = type(decision).model_validate_json(decision.model_dump_json())
+
+    assert persisted.driver_authorization == authorization
+
+
+def test_driver_test_same_phase_task_execution_wait_does_not_require_authorization():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.TESTING)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T18:12:00Z",
+        wait_to_start=wait_policy(),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.TASK_EXECUTION
+    assert decision.material_progress is False
+    assert decision.progress_signal == ProgressSignal.WAIT_TIMER_STARTED
+    assert decision.wait_to_start == wait_policy()
+    assert decision.blocker_to_record is None
 
 
 def test_project_transition_helper_emits_workflow_decision():

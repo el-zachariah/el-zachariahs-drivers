@@ -9,17 +9,20 @@ from __future__ import annotations
 from el_zachariahs_drivers.models import (
     Blocker,
     DriverActor,
+    DriverAuthorizationEvidence,
     ProgressSignal,
     ProjectIntakePhase,
     ProjectState,
     ResumeDecisionOption,
     ResumeTarget,
+    TargetSurface,
     TaskPhase,
     TerminalOutcome,
     WaitPolicy,
     WorkflowDecision,
     WorkflowRole,
 )
+from el_zachariahs_drivers.policies.proposal import check_project_transition_gate
 from el_zachariahs_drivers.review_triggers import ReviewTriggerState, ReviewTriggerVerification
 
 
@@ -85,6 +88,25 @@ PROJECT_TRANSITION_SIGNALS: dict[tuple[ProjectIntakePhase, ProjectIntakePhase], 
     (ProjectIntakePhase.FINAL_REPORT, ProjectIntakePhase.DONE): ProgressSignal.FINAL_REPORT_DELIVERED,
 }
 
+DRIVER_AUTHORIZED_DECISION_PHASES = {
+    ProjectIntakePhase.TASK_EXECUTION,
+    ProjectIntakePhase.PR_OPEN,
+    ProjectIntakePhase.REVIEW_REQUESTED,
+}
+
+
+def _driver_authorization_for_decision(
+    *,
+    driver_authorization: DriverAuthorizationEvidence | None,
+    driver_test_mode: bool,
+    next_phase: ProjectIntakePhase,
+) -> DriverAuthorizationEvidence | None:
+    """Persist driver-test authorization on material implementation/PR decisions."""
+
+    if not driver_test_mode or next_phase not in DRIVER_AUTHORIZED_DECISION_PHASES:
+        return None
+    return driver_authorization
+
 
 def next_project_phase(state: ProjectState) -> ProjectIntakePhase:
     """Pure phase transition sketch for the software project lifecycle."""
@@ -122,10 +144,35 @@ def decide_next_project_transition(
     decision_id: str | None = None,
     wait_to_start: WaitPolicy | None = None,
     review_trigger: ReviewTriggerVerification | None = None,
+    candidate_target: TargetSurface | None = None,
+    driver_authorization: DriverAuthorizationEvidence | None = None,
+    driver_test_mode: bool = False,
 ) -> WorkflowDecision:
     """Return the contract decision for the next deterministic project transition."""
     next_phase = next_project_phase(state)
     progress_signal = PROJECT_TRANSITION_SIGNALS.get((state.phase, next_phase))
+
+    gate_check = check_project_transition_gate(
+        state,
+        next_phase=next_phase,
+        candidate_target=candidate_target,
+        driver_authorization=driver_authorization,
+        driver_test_mode=driver_test_mode,
+    )
+    if not gate_check.ok:
+        blocker = gate_check.blocker
+        if blocker is None:
+            raise ValueError("transition gate failures must include a blocker")
+        blocked_phase = _blocked_phase_for(blocker.owner_role)
+        return WorkflowDecision(
+            decision_id=decision_id or f"{state.id}:{state.phase}:v2-transition-gate-blocked",
+            decided_at=decided_at,
+            from_phase=state.phase,
+            to_phase=blocked_phase,
+            material_progress=True,
+            progress_signal=ProgressSignal.BLOCKER_CREATED,
+            blocker_to_record=blocker,
+        )
 
     if state.blocker:
         if next_phase == state.phase:
@@ -207,4 +254,9 @@ def decide_next_project_transition(
         to_phase=next_phase,
         material_progress=True,
         progress_signal=progress_signal,
+        driver_authorization=_driver_authorization_for_decision(
+            driver_authorization=driver_authorization,
+            driver_test_mode=driver_test_mode,
+            next_phase=next_phase,
+        ),
     )

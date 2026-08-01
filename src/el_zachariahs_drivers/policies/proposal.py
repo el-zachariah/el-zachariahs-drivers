@@ -10,11 +10,17 @@ from pydantic import BaseModel, Field
 
 from el_zachariahs_drivers.models import (
     ApprovedTargetBinding,
+    Blocker,
+    DriverActor,
+    DriverAuthorizationEvidence,
     EvidenceRef,
     ProjectIntakePhase,
     ProjectState,
     ProposalGateStatus,
+    ResumeDecisionOption,
+    ResumeTarget,
     TargetSurface,
+    WorkflowRole,
 )
 
 
@@ -37,6 +43,25 @@ class TargetBindingCheck(BaseModel):
     @property
     def ok(self) -> bool:
         return self.status == ProposalGateStatus.APPROVED
+
+
+class ProjectTransitionGateCheck(BaseModel):
+    ok: bool
+    failures: list[str] = Field(default_factory=list)
+    blocker: Blocker | None = None
+
+
+GATED_IMPLEMENTATION_PHASES = {
+    ProjectIntakePhase.TASK_BREAKDOWN,
+    ProjectIntakePhase.TASK_EXECUTION,
+    ProjectIntakePhase.PR_OPEN,
+}
+
+DRIVER_AUTHORIZED_PROGRESS_PHASES = {
+    ProjectIntakePhase.TASK_EXECUTION,
+    ProjectIntakePhase.PR_OPEN,
+    ProjectIntakePhase.REVIEW_REQUESTED,
+}
 
 
 def check_proposal_gate(project: ProjectState) -> ProposalGateCheck:
@@ -97,12 +122,13 @@ def _binding_evidence_failures(project: ProjectState) -> tuple[ProposalGateStatu
 
         source_targets = [source_discovery.recommended_target] if source_discovery.recommended_target else []
         source_targets.extend(source_discovery.discovered_sources)
-        if not any(_target_identity_matches(binding.target, target) for target in source_targets):
-            if not _has_explicit_substitute_approval(binding):
-                target_mismatch = True
-                failures.append(
-                    "approved target is not the discovered/recommended target and no explicit approved substitute evidence is recorded"
-                )
+        if not any(
+            _target_identity_matches(binding.target, target) for target in source_targets
+        ) and not _has_explicit_substitute_approval(binding):
+            target_mismatch = True
+            failures.append(
+                "approved target is not the discovered/recommended target and no explicit approved substitute evidence is recorded"
+            )
 
     if not binding.source_discovery_refs:
         failures.append("approved target binding must reference source discovery evidence")
@@ -204,3 +230,110 @@ def check_project_target_binding(project: ProjectState, candidate: TargetSurface
             failures=["no approved target binding is recorded"],
         )
     return target_matches_binding(project.approved_target_binding, candidate)
+
+
+def check_project_transition_gate(
+    project: ProjectState,
+    *,
+    next_phase: ProjectIntakePhase,
+    candidate_target: TargetSurface | None = None,
+    driver_authorization: DriverAuthorizationEvidence | None = None,
+    driver_test_mode: bool = False,
+) -> ProjectTransitionGateCheck:
+    """Validate V2 process gates before allowing implementation/PR progress.
+
+    Ambiguous projects cannot enter implementation/PR phases until the proposal
+    gate passes, target evidence must still match the approved binding, and
+    driver-test progress must cite a non-supervisor driver authorization.
+    """
+    if next_phase == project.phase:
+        return ProjectTransitionGateCheck(ok=True)
+
+    failures: list[str] = []
+    status = ProposalGateStatus.APPROVED
+
+    if project.proposal_required and next_phase in GATED_IMPLEMENTATION_PHASES:
+        proposal_check = check_proposal_gate(project)
+        if not proposal_check.ok:
+            failures.extend(proposal_check.failures)
+            status = proposal_check.status
+        elif candidate_target is None:
+            failures.append("candidate target evidence is required for implementation/PR phases")
+            status = ProposalGateStatus.TARGET_MISMATCH
+        else:
+            target_check = check_project_target_binding(project, candidate_target)
+            if not target_check.ok:
+                failures.extend(target_check.failures)
+                status = target_check.status
+
+    if driver_test_mode and next_phase in DRIVER_AUTHORIZED_PROGRESS_PHASES:
+        if driver_authorization is None:
+            failures.append("driver-test material progress requires driver authorization evidence")
+        elif driver_authorization.supervisor_intervention:
+            failures.append("supervisor intervention cannot count as driver-authorized initiative progress")
+        elif driver_authorization.authorized_by_role != WorkflowRole.DEVELOPER:
+            failures.append(
+                "driver-test material progress must be authorized by the developer role: "
+                f"authorized_by_role={driver_authorization.authorized_by_role!r}"
+            )
+        elif (
+            project.approved_target_binding is not None
+            and driver_authorization.binding_version != project.approved_target_binding.version
+        ):
+            failures.append(
+                "driver authorization binding version mismatch: "
+                f"approved={project.approved_target_binding.version!r} "
+                f"authorized={driver_authorization.binding_version!r}"
+            )
+
+    if not failures:
+        return ProjectTransitionGateCheck(ok=True)
+    return ProjectTransitionGateCheck(
+        ok=False,
+        failures=failures,
+        blocker=_blocker_for_transition_gate(project.id, project.phase, next_phase, status, failures),
+    )
+
+
+def _blocker_for_transition_gate(
+    project_id: str,
+    from_phase: ProjectIntakePhase,
+    next_phase: ProjectIntakePhase,
+    status: ProposalGateStatus,
+    failures: list[str],
+) -> Blocker:
+    if status == ProposalGateStatus.BLOCKED_OWNERSHIP:
+        owner_role = WorkflowRole.PROCESS_STEWARD
+        owner = DriverActor.EL_LE
+        category = "process"
+        required_decision = "route cross-profile target ownership and resume proposal review"
+    else:
+        owner_role = WorkflowRole.HUMAN_APPROVER
+        owner = DriverActor.ZO_EL
+        category = "human_authority"
+        required_decision = "approve a source-backed proposal/target binding or request plan rethink"
+
+    return Blocker(
+        reason=f"V2 transition gate blocked {project_id} before {next_phase}: " + "; ".join(failures),
+        category=category,
+        owner=owner,
+        owner_role=owner_role,
+        required_decision=required_decision,
+        resume_target=ResumeTarget(
+            blocked_phase=str(from_phase),
+            resume_phase_if_unblocked=str(ProjectIntakePhase.PLAN_REVIEW),
+            resume_activity="review_source_backed_proposal",
+            decision_options=[
+                ResumeDecisionOption(
+                    decision="proposal_approved_with_target_binding",
+                    resulting_phase=str(ProjectIntakePhase.PLAN_REVIEW),
+                    notes="Retry the gated transition after approved target binding and target evidence are persisted.",
+                ),
+                ResumeDecisionOption(
+                    decision="plan_rethink_required",
+                    resulting_phase=str(ProjectIntakePhase.PLAN_RETHINK),
+                    notes="Return to plan rethink when target/source/authorization evidence does not match.",
+                ),
+            ],
+        ),
+    )
