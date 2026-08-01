@@ -14,9 +14,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from el_zachariahs_drivers.models import (
+    ActivityFailurePolicy,
     ActivityRequest,
     ActivitySideEffect,
-    ActivityFailurePolicy,
     EvidenceType,
     RetryPolicy,
     TimeoutPolicy,

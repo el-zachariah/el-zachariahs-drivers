@@ -132,12 +132,16 @@ def approved_local_ui_project(phase: ProjectIntakePhase) -> ProjectState:
     )
 
 
-def driver_auth(binding_version: str = "v1", supervisor_intervention: bool = False) -> DriverAuthorizationEvidence:
+def driver_auth(
+    binding_version: str = "v1",
+    supervisor_intervention: bool = False,
+    authorized_by_role: WorkflowRole = WorkflowRole.DEVELOPER,
+) -> DriverAuthorizationEvidence:
     return DriverAuthorizationEvidence(
         workflow_decision_id="decision-task-complete-1",
         activity_id="activity-implement-approved-target",
         binding_version=binding_version,
-        authorized_by_role=WorkflowRole.DEVELOPER,
+        authorized_by_role=authorized_by_role,
         supervisor_intervention=supervisor_intervention,
     )
 
@@ -363,6 +367,24 @@ def test_supervisor_intervention_cannot_count_as_driver_authorized_progress():
     assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
     assert decision.blocker_to_record is not None
     assert "supervisor intervention cannot count" in decision.blocker_to_record.reason
+
+
+def test_process_steward_authorization_cannot_count_as_driver_authorized_progress():
+    project = approved_local_ui_project(ProjectIntakePhase.TASK_EXECUTION)
+    project.tasks = [TaskState(id="t1", title="Task", phase=TaskPhase.COMPLETE)]
+
+    decision = decide_next_project_transition(
+        project,
+        decided_at="2026-08-01T19:50:00Z",
+        candidate_target=local_ui_target(),
+        driver_authorization=driver_auth(authorized_by_role=WorkflowRole.PROCESS_STEWARD),
+        driver_test_mode=True,
+    )
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "must be authorized by the developer role" in decision.blocker_to_record.reason
+    assert "process_steward" in decision.blocker_to_record.reason
 
 
 def test_driver_authorization_must_match_approved_binding_version():

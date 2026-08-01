@@ -15,12 +15,12 @@ from el_zachariahs_drivers.models import (
     ProjectState,
     ResumeDecisionOption,
     ResumeTarget,
+    TargetSurface,
     TaskPhase,
     TerminalOutcome,
     WaitPolicy,
     WorkflowDecision,
     WorkflowRole,
-    TargetSurface,
 )
 from el_zachariahs_drivers.policies.proposal import check_project_transition_gate
 from el_zachariahs_drivers.review_triggers import ReviewTriggerState, ReviewTriggerVerification

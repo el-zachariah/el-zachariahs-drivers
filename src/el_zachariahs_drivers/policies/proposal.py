@@ -121,12 +121,13 @@ def _binding_evidence_failures(project: ProjectState) -> tuple[ProposalGateStatu
 
         source_targets = [source_discovery.recommended_target] if source_discovery.recommended_target else []
         source_targets.extend(source_discovery.discovered_sources)
-        if not any(_target_identity_matches(binding.target, target) for target in source_targets):
-            if not _has_explicit_substitute_approval(binding):
-                target_mismatch = True
-                failures.append(
-                    "approved target is not the discovered/recommended target and no explicit approved substitute evidence is recorded"
-                )
+        if not any(
+            _target_identity_matches(binding.target, target) for target in source_targets
+        ) and not _has_explicit_substitute_approval(binding):
+            target_mismatch = True
+            failures.append(
+                "approved target is not the discovered/recommended target and no explicit approved substitute evidence is recorded"
+            )
 
     if not binding.source_discovery_refs:
         failures.append("approved target binding must reference source discovery evidence")
@@ -269,6 +270,11 @@ def check_project_transition_gate(
             failures.append("driver-test material progress requires driver authorization evidence")
         elif driver_authorization.supervisor_intervention:
             failures.append("supervisor intervention cannot count as driver-authorized initiative progress")
+        elif driver_authorization.authorized_by_role != WorkflowRole.DEVELOPER:
+            failures.append(
+                "driver-test material progress must be authorized by the developer role: "
+                f"authorized_by_role={driver_authorization.authorized_by_role!r}"
+            )
         elif (
             project.approved_target_binding is not None
             and driver_authorization.binding_version != project.approved_target_binding.version

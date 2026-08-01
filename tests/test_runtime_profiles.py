@@ -5,7 +5,6 @@ import pytest
 from el_zachariahs_drivers.models import WorkflowRole
 from el_zachariahs_drivers.runtime_profiles import load_runtime_profile, require_bound_roles
 
-
 PROFILE_DIR = Path(__file__).parents[1] / "examples" / "profiles"
 REQUIRED_ROLES = set(WorkflowRole)
 
