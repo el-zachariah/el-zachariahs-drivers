@@ -24,6 +24,8 @@ class WorkflowStatus(BaseModel):
     phase: str
     next_trigger: str
     blocker: dict[str, Any] | None = None
+    waiting_on: dict[str, Any] | None = None
+    human_action_required: dict[str, Any] | None = None
     evidence_uris: list[str]
     terminal: str | None = None
 
@@ -109,6 +111,8 @@ class JsonWorkflowStore:
             phase=state.phase,
             next_trigger=self._next_trigger(state),
             blocker=self._blocker_summary(state.blocker),
+            waiting_on=self._waiting_on_summary(state),
+            human_action_required=self._human_action_required(state.blocker),
             evidence_uris=self._status_evidence_uris(state),
             terminal=state.terminal.outcome.value if state.terminal else None,
         )
@@ -167,6 +171,60 @@ class JsonWorkflowStore:
         if state.current_activity:
             return f"activity:{state.current_activity.role.value}:{state.current_activity.activity_id}"
         return "event"
+
+    @staticmethod
+    def _waiting_on_summary(state: WorkflowStateRecord) -> dict[str, Any] | None:
+        """Return the currently awaited owner/signal for user-facing surfaces."""
+
+        if state.terminal:
+            return None
+        if state.blocker:
+            return {
+                "kind": "blocker",
+                "owner_role": state.blocker.owner_role.value,
+                "phase": state.phase,
+                "required_decision": state.blocker.required_decision,
+                "resume_phase_if_unblocked": state.blocker.resume_target.resume_phase_if_unblocked,
+                "resume_activity": state.blocker.resume_target.resume_activity,
+            }
+        if state.wait:
+            return {
+                "kind": "wait",
+                "awaited_signal": state.wait.awaited_signal,
+                "threshold_at": state.wait.threshold_at,
+                "threshold_response": state.wait.threshold_response.value,
+            }
+        if state.current_activity:
+            return {
+                "kind": "activity",
+                "owner_role": state.current_activity.role.value,
+                "activity_id": state.current_activity.activity_id,
+            }
+        return None
+
+    @staticmethod
+    def _human_action_required(blocker: Blocker | None) -> dict[str, Any] | None:
+        """Return an explicit human action card when a blocker needs the requester."""
+
+        if blocker is None or blocker.owner_role.value != "human_approver":
+            return None
+        return {
+            "title": "Waiting on human approver",
+            "owner_role": blocker.owner_role.value,
+            "category": blocker.category,
+            "required_action": blocker.required_decision,
+            "reason": blocker.reason,
+            "resume_target": {
+                "blocked_phase": blocker.resume_target.blocked_phase,
+                "resume_phase_if_unblocked": blocker.resume_target.resume_phase_if_unblocked,
+                "resume_activity": blocker.resume_target.resume_activity,
+                "decision_options": [
+                    option.model_dump(mode="json")
+                    for option in blocker.resume_target.decision_options
+                ],
+            },
+            "evidence_uris": [ref.uri for ref in blocker.evidence_refs],
+        }
 
     @staticmethod
     def _blocker_summary(blocker: Blocker | None) -> dict[str, Any] | None:
