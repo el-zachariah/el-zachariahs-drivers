@@ -96,7 +96,9 @@ def test_ambiguous_project_status_requires_proposal_binding_until_approved():
         approved_by="zo-el",
         approved_at="2026-08-01T16:20:00Z",
         approval_record=approval_record,
-        covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+        covered_acceptance_criteria=[
+            "upgrade the currently running local UI/dashboard for el-le brain and Micaiah"
+        ],
     )
     project.approved_target_binding = binding
 
@@ -146,7 +148,9 @@ def test_binding_must_match_proposal_approval_record_and_discovery_refs():
             approved_by="zo-el",
             approved_at="2026-08-01T16:20:00Z",
             approval_record=evidence("gh-pr://approval", EvidenceType.PROPOSAL_APPROVAL),
-            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+            covered_acceptance_criteria=[
+                "upgrade the currently running local UI/dashboard for el-le brain and Micaiah"
+            ],
         ),
         approved_target_binding=binding,
     )
@@ -180,7 +184,9 @@ def test_binding_must_match_source_discovery_target_unless_substitute_is_explici
             approved_by="zo-el",
             approved_at="2026-08-01T16:20:00Z",
             approval_record=approval_record,
-            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+            covered_acceptance_criteria=[
+                "upgrade the currently running local UI/dashboard for el-le brain and Micaiah"
+            ],
         ),
         approved_target_binding=binding,
     )
@@ -218,7 +224,9 @@ def test_explicit_proposal_approved_substitute_can_pass_discovery_target_mismatc
             approved_by="zo-el",
             approved_at="2026-08-01T16:20:00Z",
             approval_record=approval_record,
-            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+            covered_acceptance_criteria=[
+                "upgrade the currently running local UI/dashboard for el-le brain and Micaiah"
+            ],
         ),
         approved_target_binding=binding,
     )
@@ -253,7 +261,9 @@ def test_unresolved_cross_profile_ownership_blocks_proposal_gate():
             approved_by="zo-el",
             approved_at="2026-08-01T16:20:00Z",
             approval_record=approval_record,
-            covered_acceptance_criteria=["upgrade the currently running local UI/dashboard"],
+            covered_acceptance_criteria=[
+                "upgrade the currently running local UI/dashboard for el-le brain and Micaiah"
+            ],
         ),
         approved_target_binding=binding,
     )

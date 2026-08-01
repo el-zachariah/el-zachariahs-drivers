@@ -163,6 +163,12 @@ def _binding_evidence_failures(project: ProjectState) -> tuple[ProposalGateStatu
         failures.append(
             f"approved_by mismatch: approval={approval.approved_by!r} binding={binding.approved_by!r}"
         )
+    failures.extend(
+        _criteria_mismatch_failures(
+            approval.covered_acceptance_criteria,
+            binding.covered_acceptance_criteria,
+        )
+    )
     return _proposal_gate_failure_status(blocked_ownership, target_mismatch), failures
 
 
@@ -181,6 +187,23 @@ def _ref_key(ref: EvidenceRef) -> tuple[str, str, str | None]:
 def _refs_overlap(left: list[EvidenceRef], right: list[EvidenceRef]) -> bool:
     right_keys = {_ref_key(ref) for ref in right}
     return any(_ref_key(ref) in right_keys for ref in left)
+
+
+def _criteria_mismatch_failures(approved: list[str], binding: list[str]) -> list[str]:
+    approved_set = set(approved)
+    binding_set = set(binding)
+    failures: list[str] = []
+    for criterion in sorted(approved_set - binding_set):
+        failures.append(
+            "approved target binding is missing proposal-approved acceptance criterion: "
+            f"{criterion!r}"
+        )
+    for criterion in sorted(binding_set - approved_set):
+        failures.append(
+            "approved target binding includes acceptance criterion not present in proposal approval: "
+            f"{criterion!r}"
+        )
+    return failures
 
 
 def _target_identity_matches(left: TargetSurface, right: TargetSurface) -> bool:
@@ -205,8 +228,11 @@ def _has_report_substitute_approval(
     report: AcceptanceReport,
 ) -> bool:
     """Return whether acceptance proof may satisfy an approved substitute artifact."""
-    return bool(binding.approved_substitute_artifacts) and bool(report.substitute_approval_refs) and _refs_overlap(
-        binding.approved_substitute_artifacts, report.substitute_approval_refs
+    return (
+        bool(binding.approved_substitute_artifacts)
+        and bool(report.substitute_approval_refs)
+        and _refs_overlap(binding.approved_substitute_artifacts, report.substitute_approval_refs)
+        and _refs_overlap(binding.approved_substitute_artifacts, report.target.evidence_refs)
     )
 
 
@@ -278,7 +304,12 @@ def check_acceptance_proof(project: ProjectState) -> AcceptanceProofCheck:
         failures.append("substitute deliverable is not explicitly approved for terminal acceptance")
 
     proved_criteria = {proof.criterion for proof in report.criteria if proof.satisfied and proof.evidence_refs}
-    for criterion in binding.covered_acceptance_criteria:
+    required_criteria = list(binding.covered_acceptance_criteria)
+    if project.proposal_approval is not None:
+        for criterion in project.proposal_approval.covered_acceptance_criteria:
+            if criterion not in required_criteria:
+                required_criteria.append(criterion)
+    for criterion in required_criteria:
         if criterion not in proved_criteria:
             failures.append(f"missing acceptance proof for original criterion: {criterion!r}")
 

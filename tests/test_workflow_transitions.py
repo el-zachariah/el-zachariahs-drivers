@@ -752,6 +752,55 @@ def test_project_final_report_rejects_missing_original_intake_criteria():
     assert "missing acceptance proof" in decision.blocker_to_record.reason
 
 
+def test_project_final_report_rejects_binding_that_narrows_approved_criteria():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    assert project.proposal_approval is not None
+    assert project.approved_target_binding is not None
+    project.proposal_approval.covered_acceptance_criteria = [
+        "upgrade the currently running local UI/dashboard",
+        "preserve the original 8787 live service target",
+    ]
+    project.approved_target_binding.covered_acceptance_criteria = ["narrowed criterion only"]
+    project.acceptance_report = acceptance_report_for(
+        local_ui_target(),
+        criteria=["narrowed criterion only"],
+    )
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T22:37:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "missing proposal-approved acceptance criterion" in decision.blocker_to_record.reason
+    assert "upgrade the currently running local UI/dashboard" in decision.blocker_to_record.reason
+    assert "preserve the original 8787 live service target" in decision.blocker_to_record.reason
+
+
+def test_project_final_report_rejects_substitute_approval_reused_for_unapproved_target():
+    project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
+    assert project.approved_target_binding is not None
+    substitute_ref = evidence("gh-comment://approved-9120-preview", EvidenceType.PROPOSAL_APPROVAL)
+    project.approved_target_binding.approved_substitute_artifacts = [substitute_ref]
+    unapproved_preview = TargetSurface(
+        label="unapproved 9999 preview",
+        url="http://192.168.0.110:9999/",
+        port=9999,
+        service_identity="unapproved.preview",
+        cwd="/tmp/unapproved-preview",
+        repo="el-zachariah/unapproved-preview",
+        owner_profile="el-zachariah",
+        evidence_refs=[evidence("preview://9999-run", EvidenceType.PROOF)],
+    )
+    project.acceptance_report = acceptance_report_for(unapproved_preview)
+    project.acceptance_report.substitute_approval_refs = [substitute_ref]
+
+    decision = decide_next_project_transition(project, decided_at="2026-08-01T22:38:00Z")
+
+    assert decision.to_phase == ProjectIntakePhase.BLOCKED_NEEDS_ZO_EL
+    assert decision.blocker_to_record is not None
+    assert "port mismatch" in decision.blocker_to_record.reason
+    assert "substitute deliverable is not explicitly approved" in decision.blocker_to_record.reason
+
+
 def test_project_final_report_decision_is_terminal_done_with_verified_acceptance_report():
     project = approved_local_ui_project(ProjectIntakePhase.FINAL_REPORT)
     project.acceptance_report = acceptance_report_for(local_ui_target())
