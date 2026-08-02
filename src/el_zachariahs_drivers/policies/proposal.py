@@ -58,6 +58,13 @@ class AcceptanceProofCheck(BaseModel):
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)
 
 
+class V2ProcessInvariantAudit(BaseModel):
+    """Consolidated audit result for replaying a driver-test run against V2 gates."""
+
+    ok: bool
+    failures: list[str] = Field(default_factory=list)
+
+
 GATED_IMPLEMENTATION_PHASES = {
     ProjectIntakePhase.TASK_BREAKDOWN,
     ProjectIntakePhase.TASK_EXECUTION,
@@ -343,6 +350,77 @@ def check_acceptance_proof(project: ProjectState) -> AcceptanceProofCheck:
         failures.append("acceptance report must include evidence refs")
 
     return AcceptanceProofCheck(ok=not failures, failures=failures, evidence_refs=report.evidence_refs)
+
+
+def audit_v2_process_invariants(
+    project: ProjectState,
+    *,
+    candidate_target: TargetSurface | None = None,
+    driver_authorization: DriverAuthorizationEvidence | None = None,
+    driver_test_mode: bool = False,
+) -> V2ProcessInvariantAudit:
+    """Replay a project snapshot against the major V2 process invariants.
+
+    This is the audit entry point for failed-run fixtures. It intentionally checks
+    each V2 guard independently instead of stopping at the first blocker, so a
+    post-mortem can see whether proposal/source, ownership/target drift,
+    driver-authorization, and terminal DONE proof would all reject the run.
+    """
+    failures: list[str] = []
+
+    proposal_check = check_proposal_gate(project)
+    failures.extend(f"proposal gate: {failure}" for failure in proposal_check.failures)
+
+    if candidate_target is not None:
+        failures.extend(
+            f"source target drift: {failure}"
+            for failure in _candidate_source_target_failures(project, candidate_target)
+        )
+
+    if project.phase in {
+        ProjectIntakePhase.TASK_BREAKDOWN,
+        ProjectIntakePhase.TASK_EXECUTION,
+        ProjectIntakePhase.PR_OPEN,
+        ProjectIntakePhase.REVIEW_REQUESTED,
+        ProjectIntakePhase.REVIEW_WAIT,
+        ProjectIntakePhase.FINAL_REPORT,
+        ProjectIntakePhase.DONE,
+    }:
+        transition_check = check_project_transition_gate(
+            project,
+            next_phase=ProjectIntakePhase.PR_OPEN,
+            candidate_target=candidate_target,
+            driver_authorization=driver_authorization,
+            driver_test_mode=driver_test_mode,
+        )
+        failures.extend(f"implementation transition: {failure}" for failure in transition_check.failures)
+
+    acceptance_check = check_acceptance_proof(project)
+    failures.extend(f"done gate: {failure}" for failure in acceptance_check.failures)
+
+    return V2ProcessInvariantAudit(ok=not failures, failures=failures)
+
+
+def _candidate_source_target_failures(project: ProjectState, candidate: TargetSurface) -> list[str]:
+    if project.source_discovery is None:
+        return ["source discovery report is required before candidate target audit"]
+
+    source_targets = [project.source_discovery.recommended_target] if project.source_discovery.recommended_target else []
+    source_targets.extend(project.source_discovery.discovered_sources)
+    if any(_target_identity_matches(candidate, target) for target in source_targets):
+        return []
+
+    reference = project.source_discovery.recommended_target or project.source_discovery.discovered_sources[0]
+    fields = ("url", "port", "service_identity", "cwd", "repo", "worktree", "owner_profile")
+    failures = []
+    for field in fields:
+        approved = getattr(reference, field)
+        observed = getattr(candidate, field)
+        if approved != observed:
+            failures.append(
+                f"candidate {field} does not match discovered target: discovered={approved!r} candidate={observed!r}"
+            )
+    return failures
 
 
 def check_project_transition_gate(

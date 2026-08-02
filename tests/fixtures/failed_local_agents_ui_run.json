@@ -1,7 +1,7 @@
 {
-  "intake_id": "local-agents-ui-upgrade",
+  "description": "Failed local-agents UI driver-test: original live UI target was 8787 under el-micaiah, but implementation/proof drifted to an el-zachariah 9120 preview and V1 treated it as DONE.",
   "original_target": {
-    "label": "live micaiah status UI",
+    "label": "actual live micaiah status UI",
     "url": "http://192.168.0.110:8787/",
     "port": 8787,
     "service_identity": "micaiah_status.server",
@@ -10,13 +10,115 @@
     "owner_profile": "el-micaiah"
   },
   "wrong_substitute": {
-    "label": "parallel hermes council mind preview",
+    "label": "parallel replacement preview",
     "url": "http://192.168.0.110:9120/",
     "port": 9120,
-    "service_identity": "hermes-council-mind preview",
+    "service_identity": "hermes-council-mind.preview",
     "cwd": "/home/zachariah/Documents/el-zachariah/repos/hermes-council-mind",
     "repo": "el-zachariah/hermes-council-mind",
     "owner_profile": "el-zachariah"
   },
-  "process_failure": "Workflow reached DONE using the substitute preview without human-approved target drift from the live 8787 service."
+  "driver_test_mode": true,
+  "candidate_target": {
+    "label": "parallel replacement preview",
+    "url": "http://192.168.0.110:9120/",
+    "port": 9120,
+    "service_identity": "hermes-council-mind.preview",
+    "cwd": "/home/zachariah/Documents/el-zachariah/repos/hermes-council-mind",
+    "repo": "el-zachariah/hermes-council-mind",
+    "owner_profile": "el-zachariah"
+  },
+  "project": {
+    "id": "failed-local-agents-ui-run",
+    "title": "Upgrade the currently running local UI/dashboard for el-le brain and Micaiah",
+    "phase": "FINAL_REPORT",
+    "proposal_required": true,
+    "source_discovery": {
+      "intake_id": "local-agents-ui-upgrade",
+      "discovered_sources": [
+        {
+          "label": "actual live micaiah status UI",
+          "url": "http://192.168.0.110:8787/",
+          "port": 8787,
+          "service_identity": "micaiah_status.server",
+          "cwd": "/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+          "repo": "/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+          "owner_profile": "el-micaiah",
+          "evidence_refs": [
+            {
+              "type": "source_discovery",
+              "uri": "process://micaiah_status.server@8787"
+            }
+          ]
+        }
+      ],
+      "recommended_target": {
+        "label": "actual live micaiah status UI",
+        "url": "http://192.168.0.110:8787/",
+        "port": 8787,
+        "service_identity": "micaiah_status.server",
+        "cwd": "/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+        "repo": "/home/zachariah/Documents/el-micaiah/micaiah-status-ui",
+        "owner_profile": "el-micaiah",
+        "evidence_refs": [
+          {
+            "type": "source_discovery",
+            "uri": "process://micaiah_status.server@8787"
+          }
+        ]
+      },
+      "ownership_boundary": "target belongs to el-micaiah profile",
+      "confidence": "high",
+      "required_next_gate": "PLAN_REVIEW",
+      "evidence_refs": [
+        {
+          "type": "source_discovery",
+          "uri": "fixture://failed-local-agents-ui-run/source-discovery"
+        }
+      ]
+    },
+    "acceptance_report": {
+      "report_id": "v1-false-done-report",
+      "binding_version": null,
+      "target": {
+        "label": "parallel replacement preview",
+        "url": "http://192.168.0.110:9120/",
+        "port": 9120,
+        "service_identity": "hermes-council-mind.preview",
+        "cwd": "/home/zachariah/Documents/el-zachariah/repos/hermes-council-mind",
+        "repo": "el-zachariah/hermes-council-mind",
+        "owner_profile": "el-zachariah"
+      },
+      "criteria": [
+        {
+          "criterion": "upgrade the currently running local UI/dashboard",
+          "satisfied": true,
+          "evidence_refs": [
+            {
+              "type": "proof",
+              "uri": "preview://192.168.0.110:9120"
+            }
+          ],
+          "notes": "This evidence is for the replacement preview, not the live 8787 UI."
+        }
+      ],
+      "live_verification_required": false,
+      "live_verification_passed": null,
+      "substitute_approval_refs": [],
+      "evidence_refs": [
+        {
+          "type": "report",
+          "uri": "fixture://failed-local-agents-ui-run/final-report"
+        }
+      ]
+    },
+    "tasks": [
+      {
+        "id": "build-parallel-ui",
+        "title": "Build replacement preview instead of upgrading 8787 UI",
+        "phase": "COMPLETE"
+      }
+    ],
+    "pr_url": "https://github.com/el-zachariah/hermes-council-mind/pull/1"
+  }
 }
